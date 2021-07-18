@@ -1,0 +1,3 @@
+The crws.sh script will collect Read KB/S and Write KB/S on the server in order to determine if the Problem is realted to the server or the IO capacity of the SAN.
+
+A second tool is the checklatency.sh that will check the latency of the disks and the partitions.
