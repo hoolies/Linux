@@ -8,9 +8,6 @@ DIRW="/var/log/IOWrite"
 [ -d "$DIRR" ] || mkdir -p "$DIRR"
 [ -d "$DIRW" ] || mkdir -p "$DIRW"
 
-# Create / Empty the iotop logfile
-echo "" > /var/log/iotop
-
 # iotop is a tool that provide the total and the current Reads and Writes on the disk
 # b Non interactive mode
 # o only threads that are doing I/O
@@ -32,4 +29,7 @@ if [[$(date +"%H%M") == '0000']]
 then
         tar -zcvf $(date +"%D%M").tar.gz "$DIRR"
         tar -zcvf $(date +"%D%M").tar.gz "$DIRW"
+        
+        # Empty the iotop logfile once per day
+        echo "" > /var/log/iotop
 fi
