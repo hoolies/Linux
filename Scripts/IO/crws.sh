@@ -20,8 +20,9 @@ iotop -boqqk -n 590 -d 0.1 | grep -i Current |grep -iv grep >> /var/log/iotop
 
 # The next 2 commands are going to break the iotop file in IORead & IOWrite
 
-cat /var/log/iotop | cut -c 19-28 | sort -ur | head -n 10 | grep '[0-9][0-9][0-9][0-9]\.' > "$DIRR"/$(date +"%H:%M")
-cat /var/log/iotop | cut -c 56-65 | sort -ur | head -n 10 | grep '[0-9][0-9][0-9][0-9]\.' > "$DIRW"/$(date +"%H:%M")
+cat /var/log/iotop  | tr -s " " | cut -d " " -f 4 | sort -ur | head -n 10 | grep '[0-9][0-9][0-9][0-9]\.' > "$DIRR"/$(date +"%H:%M")
+cat /var/log/iotop  | tr -s " " | cut -d " " -f 10 | sort -ur | head -n 10 | grep '[0-9][0-9][0-9][0-9]\.' > "$DIRW"/$(date +"%H:%M")
+
 
 # the following command will compress the IORead & IOWrite every day at midnight
 
