@@ -18,4 +18,8 @@
 
 compton &
 nitrogen --restore &
+xfdashboard -d &
+setxkbmap -layout "us,gr" -option "grp:alt_shift_toggle" &
 conky &
+kitty &
+firefox &
