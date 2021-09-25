@@ -42,8 +42,8 @@
                   'Active' - where the active window is -->
   </placement>
   <theme>
-    <name>Artwiz-boxed</name>
-    <titleLayout>L</titleLayout>
+    <name>Syscrash</name>
+    <titleLayout>C</titleLayout>
     <!--
       available characters are NDSLIMC, each can occur at most once.
       N: window icon
@@ -54,7 +54,7 @@
       S: shade (roll up/down)
       D: omnipresent (on all desktops).
   -->
-    <keepBorder>no</keepBorder>
+    <keepBorder>yes</keepBorder>
     <animateIconify>no</animateIconify>
     <font place="ActiveWindow">
       <name>deja vous</name>
@@ -66,12 +66,12 @@
       <!-- 'italic' or 'normal' -->
     </font>
     <font place="InactiveWindow">
-      <name>deja vous</name>
-      <size>11</size>
+      <name>Sans</name>
+      <size>10</size>
       <!-- font size in points -->
-      <weight>bold</weight>
+      <weight>Normal</weight>
       <!-- 'bold' or 'normal' -->
-      <slant>normal</slant>
+      <slant>Normal</slant>
       <!-- 'italic' or 'normal' -->
     </font>
     <font place="MenuHeader">
@@ -128,7 +128,7 @@
     <name>desktop 2</name>
     -->
     </names>
-    <popupTime>875</popupTime>
+    <popupTime>0</popupTime>
     <!-- The number of milliseconds to show the popup for when switching
        desktops.  Set this to 0 to disable the popup. -->
   </desktops>
@@ -176,76 +176,66 @@
     <moveButton>Middle</moveButton>
     <!-- 'Left', 'Middle', 'Right' -->
   </dock>
-
   <!-- Keyboard's bindings -->
   <keyboard>
     <chainQuitKey>C-g</chainQuitKey>
-  
     <!-- Keybindings for running applications -->
-	<!-- Refresh Openbox -->
+    <!-- Refresh Openbox -->
     <keybind key="W-S-R">
       <action name="Execute">
         <startupnotify>
           <enabled>true</enabled>
-          <name>Terminator</name>
+          <name>kitty</name>
         </startupnotify>
         <command>openbox --reconfigure</command>
       </action>
     </keybind>
-<!-- Spotsifai -->
+    <!-- Spotsifai -->
     <keybind key="W-S-P">
       <action name="Execute">
         <startupnotify>
           <enabled>true</enabled>
-          <name>Terminator</name>
+          <name>kitty</name>
         </startupnotify>
         <command>flatpak run com.spotify.Client</command>
       </action>
     </keybind>
-<!-- FireFox -->
-	<keybind key="W-S-F">
-	 <action name="Execute">
-	  <startupnotify>
+    <!-- FireFox -->
+    <keybind key="W-S-F">
+      <action name="Execute">
+        <startupnotify>
           <enabled>true</enabled>
-          <name>Terminator</name>
+          <name>kitty</name>
         </startupnotify>
         <command>firefox</command>
       </action>
     </keybind>
-<!-- Nautilus -->
-	<keybind key="W-S-N">
-	 <action name="Execute">
-	  <startupnotify>
+    <!-- Nautilus -->
+    <keybind key="W-S-N">
+      <action name="Execute">
+        <startupnotify>
           <enabled>true</enabled>
-          <name>Terminator</name>
+          <name>kitty</name>
         </startupnotify>
         <command>nautilus</command>
       </action>
     </keybind>
-
-
-
-
-
-
-
-<!-- Lock Screen -->
-   <keybind key="W-S-L">
+    <!-- Lock Screen -->
+    <keybind key="W-S-L">
       <action name="Execute">
         <startupnotify>
           <enabled>true</enabled>
-          <name>Terminator</name>
+          <name>kitty</name>
         </startupnotify>
         <command>i3lock -c 000000</command>
       </action>
     </keybind>
-
-<!-- Open DMenu -->
+    <!-- Open DMenu -->
     <keybind key="W-space">
       <action name="Execute">
         <startupnotify>
           <enabled>true</enabled>
-          <name>Terminator</name>
+          <name>kitty</name>
         </startupnotify>
         <command>dmenu_run</command>
       </action>
@@ -253,7 +243,7 @@
     <!-- Open Terminal -->
     <keybind key="W-Return">
       <action name="Execute">
-        <command>terminator</command>
+        <command>kitty</command>
       </action>
     </keybind>
     <!-- Log Out OpenBox -->
@@ -261,55 +251,89 @@
       <action name="Execute">
         <startupnotify>
           <enabled>true</enabled>
-          <name>Terminator</name>
+          <name>kitty</name>
         </startupnotify>
         <command>openbox --exit</command>
       </action>
     </keybind>
-
-
-
-  <!-- FN keys -->
-	<!-- High Brightness -->
- <keybind key="XF86MonBrightnessUp">
+    <!-- Screenshot Selection create a command /bin/ScreenSel import -silent -window root /home/hoolies/Pictures/screenshot-"`date +"%c"`".png  -->
+    <keybind key="S-Print">
       <action name="Execute">
-        <command>xrandr --output eDP-1 --brightness 0.8</command>
+        <startupnotify>
+          <enabled>true</enabled>
+          <name>kitty</name>
+        </startupnotify>
+        <command>ScreenSel</command>
       </action>
     </keybind>
-	<!-- Low Brightness -->
+    <!-- Screenshot  create a command /bin/ScreenFull import -silent -window root /home/hoolies/Pictures/screenshot-"`date +"%c"`".png-->
+    <keybind key="Print">
+      <action name="Execute">
+        <startupnotify>
+          <enabled>true</enabled>
+          <name>kitty</name>
+        </startupnotify>
+        <command>ScreenFull</command>
+      </action>
+    </keybind>
+    <!-- FN keys -->
+    <!-- High Brightness -->
+    <keybind key="XF86MonBrightnessUp">
+      <action name="Execute">
+        <command>bup</command>
+      </action>
+    </keybind>
+    <!-- Low Brightness -->
     <keybind key="XF86MonBrightnessDown">
       <action name="Execute">
+        <command>bdown</command>
+      </action>
+    </keybind>
+    <!-- Set Brightness to 1 -->
+    <keybind key="S-XF86MonBrightnessUp">
+      <action name="Execute">
+        <startupnotify>
+          <enabled>true</enabled>
+          <name>kitty</name>
+        </startupnotify>
+        <command>xrandr --output eDP-1 --brightness 1</command>
+      </action>
+    </keybind>
+    <!-- Set Brightness to 0.4 -->
+    <keybind key="S-XF86MonBrightnessDown">
+      <action name="Execute">
+        <startupnotify>
+          <enabled>true</enabled>
+          <name>kitty</name>
+        </startupnotify>
         <command>xrandr --output eDP-1 --brightness 0.4</command>
       </action>
     </keybind>
- <!-- Increase volume -->
- <keybind key="XF86AudioRaiseVolume">    
+    <!-- Increase volume -->
+    <keybind key="XF86AudioRaiseVolume">
       <action name="Execute">
-        <command>amixer set Master 5%+ unmute</command> <!-- If needed, replace "Master" with whatever "amixer scontrols" has given you as the control name -->
+        <command>amixer set Master 5%+ unmute</command>
       </action>
     </keybind>
-
-	<!-- Decrease volume -->
+    <!-- Decrease volume -->
     <keybind key="XF86AudioLowerVolume">
       <action name="Execute">
         <command>amixer set Master 5%- unmute</command>
       </action>
     </keybind>
-
-<!-- Toggle Mute -->
+    <!-- Toggle Mute -->
     <keybind key="XF86AudioMute">
       <action name="Execute">
         <command>amixer set Master toggle</command>
       </action>
     </keybind>
-<!-- Projector -->
-<keybind key="XF86Search">
+    <!-- Projector -->
+    <keybind key="XF86Search">
       <action name="Execute">
-        <command>xrandr --auto</command> <!-- A more sophisticated xrandr command (to setup extended display etc) can be used here -->
+        <command>xrandr --auto</command>
       </action>
     </keybind>
-
-  <!-- Keybindings for desktop switching -->
+    <!-- Keybindings for desktop switching -->
     <keybind key="W-1">
       <action name="GoToDesktop">
         <to>1</to>
@@ -346,7 +370,6 @@
       <action name="Close"/>
     </keybind>
     <!-- Toggle fullscreen -->
-
     <!-- Show the Title Bar Menu -->
     <keybind key="A-space">
       <action name="ShowMenu">
@@ -363,9 +386,8 @@
         </finalactions>
       </action>
     </keybind>
-
-   <!-- move window to other workspaces -->
-     <keybind key="A-W-1">
+    <!-- move window to other workspaces -->
+    <keybind key="A-W-1">
       <action name="SendToDesktop">
         <to>1</to>
         <wrap>no</wrap>
@@ -377,15 +399,14 @@
         <wrap>no</wrap>
       </action>
     </keybind>
-     <keybind key="A-W-3">
+    <keybind key="A-W-3">
       <action name="SendToDesktop">
         <to>3</to>
         <wrap>no</wrap>
       </action>
     </keybind>
-
     <!-- Tiling!? Options -->
-<!-- 50% Wide move to left -->
+    <!-- 50% Wide move to left -->
     <keybind key="W-Left">
       <action name="Unmaximize"/>
       <action name="MoveResizeTo">
@@ -395,7 +416,7 @@
         <height>100%</height>
       </action>
     </keybind>
-<!-- 50% Wide Move to right -->
+    <!-- 50% Wide Move to right -->
     <keybind key="W-Right">
       <action name="Unmaximize"/>
       <action name="MoveResizeTo">
@@ -405,14 +426,14 @@
         <height>100%</height>
       </action>
     </keybind>
-<!-- 50% Height UP -->
+    <!-- 50% Height UP -->
     <keybind key="W-Up">
       <action name="MoveResizeTo">
         <y>0</y>
         <height>50%</height>
       </action>
     </keybind>
-<!-- 50% height Down -->
+    <!-- 50% height Down -->
     <keybind key="W-Down">
       <action name="Unmaximize"/>
       <action name="MoveResizeTo">
@@ -420,19 +441,18 @@
         <height>50%</height>
       </action>
     </keybind>
-<!-- Maximize Windows -->
-  <keybind key="A-Return">
-   <action name="Unmaximize"/>
-    <action name="MoveResizeTo">
-     <y>0</y>
-     <x>0</x>
-      <width>100%</width>
-      <height>100%</height>
-    </action>
-  </keybind>
-</keyboard>
-
-<!-- This is the end of the Keyboard binding -->
+    <!-- Maximize Windows -->
+    <keybind key="A-Return">
+      <action name="Unmaximize"/>
+      <action name="MoveResizeTo">
+        <y>0</y>
+        <x>0</x>
+        <width>100%</width>
+        <height>100%</height>
+      </action>
+    </keybind>
+  </keyboard>
+  <!-- This is the end of the Keyboard binding -->
   <mouse>
     <dragThreshold>1</dragThreshold>
     <!-- number of pixels the mouse must move before a drag begins -->
@@ -505,7 +525,7 @@
         <action name="Move"/>
       </mousebind>
       <mousebind button="Left" action="DoubleClick">
-        <action name="ToggleMaximize"/>
+        <action name="ToggleMaximizeFull"/>
       </mousebind>
       <mousebind button="Up" action="Click">
         <action name="if">
@@ -890,10 +910,8 @@
 
   # end of the example
 -->
-
-	<application name="terminator">
-	 <maximized>true</maximized>
-	</application>
-
+    <application name="kitty">
+      <maximized>true</maximized>
+    </application>
   </applications>
 </openbox_config>
