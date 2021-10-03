@@ -320,13 +320,27 @@
       <action name="Execute">
         <command>amixer set Master 5%- unmute</command>
       </action>
-    </keybind>
+   </keybind>
     <!-- Toggle Mute -->
     <keybind key="XF86AudioMute">
       <action name="Execute">
         <command>amixer set Master toggle</command>
       </action>
     </keybind>
+   
+    <!-- Toggle Max -->
+    <keybind key="S-XF86AudioRaiseVolume">
+      <action name="Execute">
+        <command>amixer set Master 100% unmute</command>
+      </action>
+   </keybind>
+    <!-- Toggle Low -->
+    <keybind key="S-XF86AudioLowerVolume">
+      <action name="Execute">
+        <command>amixer set Master 1% unmute</command>
+      </action>
+   </keybind>
+
     <!-- Projector -->
     <keybind key="XF86Search">
       <action name="Execute">
