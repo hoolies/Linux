@@ -13,10 +13,6 @@ then
 fi
 export PATH
 
-
-# Uncomment the following line if you don't like systemctl's auto-paging feature:
-# export SYSTEMD_PAGER=
-
 # User specific aliases and functions
 if [ -d ~/.bashrc.d ]; then
 	for rc in ~/.bashrc.d/*; do
@@ -44,16 +40,6 @@ force_color_prompt=yes
 export PS1="\033[36m\u\033[35m @ \033[36m\h\033[35m [ \033[32m\w \033[35m]\033[37m \n$ "
 
 
-# Color for manpages in less makes manpages a little easier to read
-export LESS_TERMCAP_mb=$'\E[01;31m'
-export LESS_TERMCAP_md=$'\E[01;31m'
-export LESS_TERMCAP_me=$'\E[0m'
-export LESS_TERMCAP_se=$'\E[0m'
-export LESS_TERMCAP_so=$'\E[01;44;33m'
-export LESS_TERMCAP_ue=$'\E[0m'
-export LESS_TERMCAP_us=$'\E[01;32m'
-
-
 # Bash Completion
 unset rc
 source /etc/profile.d/bash_completion.sh
@@ -62,7 +48,11 @@ source /usr/share/fzf/shell/key-bindings.bash
 
 # Aliases
 alias ssh="kitty +kitten ssh"
-alias ls='ls --color -A --group-directories-first'
-alias ll='ls --color -lAthr --group-directories-first'
-alias l.='ls -d .* --color --group-directories-first'
+alias ls="ls --color -A --group-directories-first"
+alias ll="ls --color -lAthr --group-directories-first"
+alias l.="ls -d .* --color --group-directories-first"
 alias grep="grep --color"
+alias vim="/usr/bin/nvim"
+alias c..="cd ../.."
+alias untar="tar -zxvf"
+alias nao="sudo reboot now"
