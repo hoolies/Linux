@@ -1,4 +1,4 @@
-## This is a readme file for the docking station
+## Docking Station to Laptop screens 
 
 I use docking station with open box on my laptop.
 My aim is to use the least amount of resources possible.
