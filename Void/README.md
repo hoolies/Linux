@@ -1,3 +1,3 @@
-Many things are nto working on Void linux due to the lack of systemd.
+Many things are not working on Void Linux due to the lack of systemd.
 
-I will uplaod here the Void specific scripts.
+I will upload here the Void specific scripts.
