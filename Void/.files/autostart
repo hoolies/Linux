@@ -1,0 +1,6 @@
+pkill -9 picom && picom --daemon &
+nitrogen --restore &
+conky -c /etc/conky/conky.conf 2> /dev/null
+setxkbmap -layout "us,gr" -option "grp:alt_shift_toggle" &
+kitty &
+firefox &
