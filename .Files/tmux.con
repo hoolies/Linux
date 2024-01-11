@@ -1,0 +1,42 @@
+# Options
+
+## Colors
+set-option -sa terminal-overrides ",xterm*:Tc"
+
+## Mouse support
+set -g mouse on
+
+## Start windows and panes at 1
+set -g base-index 1
+set -g pane-base-index 1
+set-window-option -g pane-base-index 1
+set-option -g renumber-windows on
+
+# Remove random characters on launch
+set -sg escape-time 50
+
+# Bindings
+
+## set vi mode
+set-window-option -g mode-keys vi
+
+## Enable Visual mode
+bind-key -T copy-mode-vi v send-keys -X begin-selection
+bind-key -T copy-mode-vi C-v send-keys -X rectangle-toggle
+bind-key -T copy-mode-vi y send-keys -X copy-selection-and-cancel
+
+## Open panes in current directory
+bind '"' split-window -v -c "#{pane_current_path}"
+bind % split-window -h -c "#{pane_current_path}"
+
+
+# Load plugins
+set -g @plugin 'tmux-plugins/tpm'
+set -g @plugin 'tmux-plugins/tmux-sensible'
+#set -g @plugin 'christoomey/vim-tmux-navigator'
+set -g @plugin "janoamaral/tokyo-night-tmux"
+set -g @plugin 'tmux-plugins/tmux-yank'
+
+
+# Activate TPM
+run '~/.tmux/plugins/tpm/tpm'
