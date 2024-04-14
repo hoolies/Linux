@@ -1,4 +1,4 @@
-# Enable Powerlevel11k instant prompt. Should stay close to the top of ~/.zshrc.
+# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
 # Initialization code that may require console input (password prompts, [y/n]
 # confirmations, etc.) must go above this block; everything else may go below.
 if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
@@ -73,10 +73,10 @@ fi
 source $HOME/.zsh/fzf-dir-navigator/fzf-dir-navigator.zsh
 
 # Aliases:
-alias ssh="kitty +kitten ssh"
 alias ls='ls --color -A --group-directories-first'
 alias ll='ls --color -lAthr --group-directories-first'
 alias l.='ls -d .* --color --group-directories-first'
+alias c..='cd ../..'
 alias grep="grep -i --color"
 
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
@@ -84,5 +84,12 @@ alias grep="grep -i --color"
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
+
 # TMUX
-[ -z "$TMUX"  ] && { tmux attach || exec tmux new-session;}
+# Bootstrap TPM in TMUX
+[[ -d "~/.tmux/plugins/tpm" ]] && { git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm;}
+# Connect to tmux when you launch the terminal
+#[ -z "$TMUX"  ] && { tmux attach || exec tmux new-session -s void;}
+
+# Created by `pipx` on 2024-03-07 02:11:49
+export PATH="$PATH:/home/hoolies/.local/bin"
