@@ -86,9 +86,7 @@ alias grep="grep -i --color"
 
 
 # TMUX
-# Bootstrap TPM in TMUX
-[[ -d "~/.tmux/plugins/tpm" ]] && { git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm;}
-# Connect to tmux when you launch the terminal
+# Connect to tmux as soon as you ssh, this will not work nice on a local computer 
 #[ -z "$TMUX"  ] && { tmux attach || exec tmux new-session -s void;}
 
 # Created by `pipx` on 2024-03-07 02:11:49
