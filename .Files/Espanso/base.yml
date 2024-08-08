@@ -1,12 +1,12 @@
 matches:
   # Simple text replacement
-  - trigger: ":espanso"
+  - trigger: ";espanso"
     replace: "Hi there!"
 
-  - trigger: ":mail"
+  - trigger: ";mail"
     replace: "chrysanthos@rouvellas.com"
 
-  - trigger: ":gail"
+  - trigger: ";gail"
     replace: "c.rouvellas@gmail.com"
   
   - trigger: "lqc"
