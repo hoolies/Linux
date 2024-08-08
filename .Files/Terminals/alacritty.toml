@@ -37,10 +37,50 @@ animation ="Linear"
 duration = 1
 color = "#FFFFFF"
 
+[env]
+TERM = "xterm-256color"
+
 [selection]
 save_to_clipboard = true
 
 [cursor]
 style = {shape = "Block", blinking = "Always"}
-blink_timeout = 0
+blink_timeout = 5
 unfocused_hollow = false
+
+# TokyoNight Alacritty Colors
+# Default colors
+[colors.primary]
+background = '#222436'
+foreground = '#c8d3f5'
+
+# Normal colors
+[colors.normal]
+black = '#1b1d2b'
+red = '#ff757f'
+green = '#c3e88d'
+yellow = '#ffc777'
+blue = '#82aaff'
+magenta = '#c099ff'
+cyan = '#86e1fc'
+white = '#828bb8'
+
+# Bright colors
+[colors.bright]
+black = '#444a73'
+red = '#ff757f'
+green = '#c3e88d'
+yellow = '#ffc777'
+blue = '#82aaff'
+magenta = '#c099ff'
+cyan = '#86e1fc'
+white = '#c8d3f5'
+
+# Indexed Colors
+[[colors.indexed_colors]]
+index = 16
+color = '#ff966c'
+
+[[colors.indexed_colors]]
+index = 17
+color = '#c53b53'
