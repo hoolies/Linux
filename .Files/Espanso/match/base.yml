@@ -1,14 +1,9 @@
+---
 matches:
   # Simple text replacement
   - trigger: ";espanso"
     replace: "Hi there!"
 
-  - trigger: ";mail"
-    replace: "chrysanthos@rouvellas.com"
-
-  - trigger: ";gail"
-    replace: "c.rouvellas@gmail.com"
-  
   - trigger: "lqc"
     replace: "Let me know if you have any questions or concerns."
 
@@ -17,9 +12,6 @@ matches:
 
   - trigger: "tc4m"
     replace: "I send this email at a time that is convenient to me. I do not expect you to respond outside of your working hours."
-
-  - trigger: ";tel"
-    replace: "(289) 683-1510"
 
   - trigger: ";bol"
     label: "Markdown - Bold"
@@ -116,4 +108,24 @@ matches:
         params:
           cmd: "echo 'Hello from your shell'"
 
-  # And much more! For more information, visit the docs: https://espanso.org/docs/
+  # Scripts
+  - trigger: "ippa"
+    replace: "{{output}}"
+    vars:
+      - name: output
+        type: script
+        params:
+          args:
+            - python
+            - $HOME/.config/espanso/scripts/ip_tools.py
+
+  - trigger: ";mdtb"
+    replace: "{{output}}"
+    vars:
+      - name: output
+        type: script
+        params:
+          args:
+            - python
+            - $HOME/.config/espanso/scripts/mdtable.py
+...
