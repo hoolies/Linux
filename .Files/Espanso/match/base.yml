@@ -4,6 +4,12 @@ matches:
   - trigger: ";espanso"
     replace: "Hi there!"
 
+  - trigger: ";mail"
+    replace: "chrysanthos@rouvellas.com"
+
+  - trigger: ";gail"
+    replace: "c.rouvellas@gmail.com"
+  
   - trigger: "lqc"
     replace: "Let me know if you have any questions or concerns."
 
@@ -12,6 +18,9 @@ matches:
 
   - trigger: "tc4m"
     replace: "I send this email at a time that is convenient to me. I do not expect you to respond outside of your working hours."
+
+  - trigger: ";tel"
+    replace: "(289) 683-1510"
 
   - trigger: ";bol"
     label: "Markdown - Bold"
@@ -118,6 +127,16 @@ matches:
           args:
             - python
             - "%CONFIG%/scripts/ip_tools.py"
+
+  - trigger: ";rs"
+    replace: "{{output}}"
+    vars:
+      - name: output
+        type: script
+        params:
+          args:
+            - python
+            - "%CONFIG%/scripts/remove_symbols.py"
 
   - trigger: ";mdtb"
     replace: "{{output}}"
