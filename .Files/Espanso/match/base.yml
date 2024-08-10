@@ -117,7 +117,7 @@ matches:
         params:
           args:
             - python
-            - $HOME/.config/espanso/scripts/ip_tools.py
+            - "%CONFIG%/scripts/ip_tools.py"
 
   - trigger: ";mdtb"
     replace: "{{output}}"
@@ -127,5 +127,5 @@ matches:
         params:
           args:
             - python
-            - $HOME/.config/espanso/scripts/mdtable.py
+            - "%CONFIG%/scripts/mdtable.py"
 ...
