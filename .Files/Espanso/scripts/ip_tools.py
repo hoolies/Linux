@@ -8,13 +8,17 @@ class IPTools:
     ip_tools.print_output()
     """
 
-    def __init__(self, user_input) -> None:
-        self.user_input = str(user_input)
+    def __init__(self) -> None:
+        """Input: IP address and cidr notation example: 102.153.23.41/23.15
+        Output: dictionary with the all the information"""
+    
+        command_list: list = 'xclip -o -sel clip'.split(' ')
+        self.paste = str(subprocess.check_output(command_list).decode())
     
     def generate_dictionary(self) -> dict:
-        network = ipaddress.IPv4Network(self.user_input, strict=False)
+        network = ipaddress.IPv4Network(self.paste, strict=False)
 
-        ip_address: str = str(self.user_input.split('/')[0])
+        ip_address: str = str(self.paste.split('/')[0])
         subnet_mask: str = str(network.netmask)
         ip_range: list = [str(ip) for ip in network.hosts()]
         available_ips: int = int(len(ip_range))
@@ -35,10 +39,7 @@ class IPTools:
         print(*dict_to_list, sep="\n")
         
 def main() -> None:
-    
-    command_list: list = 'xclip -o -sel clip'.split(' ')
-    paste = str(subprocess.check_output(command_list).decode())
-    ip_tools = IPTools(paste)
+    ip_tools = IPTools()
     ip_tools.print_output()
 
 if __name__ == "__main__":
