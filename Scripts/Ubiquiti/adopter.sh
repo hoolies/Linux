@@ -35,7 +35,7 @@ echo -e "The controller IP is $CONTROLLER\n"
 for IP in $(cat ubiquiti_devices); do
     # Adopt the device
     echo "Connecting to $IP..."
-    sudo sshpass -p "ubnt" ssh -o StrictHostKeyChecking=no ubnt@$IP set-inform "http://$CONTROLER:8080/inform"
+    sudo sshpass -p "ubnt" ssh -o StrictHostKeyChecking=no ubnt@$IP set-inform "http://$CONTROLLER:8080/inform"
 done
 
 # Remove the file we created before

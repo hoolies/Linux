@@ -26,7 +26,7 @@ cat /var/log/iotop  | tr -s " " | cut -d " " -f 10 | sort -ur | head -n 10 | gre
 
 # the following command will compress the IORead & IOWrite every day at midnight
 
-if [[$(date +"%H%M") == '0000']]
+if [[ $(date +"%H%M") == '0000' ]]
 then
         tar -zcvf $(date +"%D%M").tar.gz "$DIRR"
         tar -zcvf $(date +"%D%M").tar.gz "$DIRW"
