@@ -19,47 +19,33 @@ BUS_COUNTS_FILE=""
 DEVICE_COUNT=0
 WIRELESS_IFACES=""
 
-print_help() {
-    cat <<'EOF'
-Device Discovery — Linux hardware and connection inventory
+usage() {
+    cat <<EOF
+Usage: ${PROGNAME:-device_discovery.sh} [OPTION]...
+Scan Linux hardware and print a device inventory.
 
-Modular scan under device_discovery/collectors/ (one module per bus/type).
-Single-file edition: device_discovery.monolithic.sh (same behavior).
-Scans sysfs, /dev, and optional system tools. Results go to stdout.
+Mandatory arguments to long options are mandatory for short options too.
 
-USAGE
-  device_discovery.sh [OPTIONS]
-
-OPTIONS
-  -h, --help       Show this help and exit.
-  --version        Print version and exit.
-  --no-prompt      Never prompt for sudo (CI, pipes, --json).
-  --json           Single JSON document (meta, devices, summary).
-  -v               Summary plus device names.
-  -vv              Full diagnostics, then summary and device table.
-  --physical-only  Omit virtual devices (docker, loopback, vcan, etc.).
-  --full           With -vv: deep /dev and /sys listings (implies -vv).
-  --pci-all        Include PCI bridges and root complexes (default skips them).
-  --posix          Strict POSIX: verify tools in PATH; no readlink.
-
-STABLE IDs
-  Each device id is derived from bus + sysfs path (or name), so ids are stable
-  across runs on the same machine (e.g. pci__bus_pci_devices_0000_00_14_0).
-
-EXAMPLES
-  device_discovery.sh
-  device_discovery.sh -v
-  device_discovery.sh --json --no-prompt > devices.json
-  device_discovery.sh --pci-all -vv
-  sudo device_discovery.sh -vv --full
-
-EXIT STATUS
-  0 success  1 usage error  127 missing required binary in PATH
+      --json            print a single JSON document
+  -v                    summary plus device names
+  -vv                   full diagnostics, then summary and device table
+      --physical-only   omit virtual devices
+      --full            with -vv, also dump /dev and /sys (implies -vv)
+      --pci-all         include PCI bridges and root complexes
+      --posix           strict POSIX: verify tools in PATH; no readlink
+      --no-prompt       never prompt for sudo
+      --version         print version and exit
+  -h, --help            display this help and exit
 EOF
 }
 
+unrecognized_option() {
+    printf '%s: unrecognized option %s\n' "${PROGNAME:-device_discovery.sh}" "$1" >&2
+    printf "Try '%s --help' for more information.\n" "${PROGNAME:-device_discovery.sh}" >&2
+}
+
 parse_args() {
-    while [ $# -gt 0 ]; do
+    while [ "$#" -gt 0 ]; do
         case "$1" in
             --json) OUTPUT_JSON=1 ;;
             -vv) VERBOSITY=2 ;;
@@ -68,24 +54,38 @@ parse_args() {
                 [ "$VERBOSITY" -gt 2 ] && VERBOSITY=2
                 ;;
             --physical-only) PHYSICAL_ONLY=1 ;;
-            --full) FULL_DUMP=1; VERBOSITY=2 ;;
+            --full)
+                FULL_DUMP=1
+                VERBOSITY=2
+                ;;
             --posix) FORCE_POSIX=1 ;;
             --pci-all) PCI_ALL=1 ;;
             --no-prompt) NONINTERACTIVE=1 ;;
             --version)
-                echo "device_discovery.sh ${SCRIPT_VERSION}"
+                printf '%s %s\n' "${PROGNAME:-device_discovery.sh}" "$SCRIPT_VERSION"
                 exit 0
                 ;;
-            -h|--help)
-                print_help
+            -h | --help)
+                usage
                 exit 0
+                ;;
+            --)
+                shift
+                break
+                ;;
+            -*)
+                unrecognized_option "$1"
+                exit 2
                 ;;
             *)
-                echo "Unknown option: $1" >&2
-                echo "Try: device_discovery.sh --help" >&2
-                exit 1
+                unrecognized_option "$1"
+                exit 2
                 ;;
         esac
         shift
     done
+    if [ "$#" -gt 0 ]; then
+        unrecognized_option "$1"
+        exit 2
+    fi
 }

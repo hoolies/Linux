@@ -1,7 +1,7 @@
 # JSON and human report emission.
 
 emit_json() {
-    hostname=$(hostname 2>/dev/null || echo unknown)
+    hostname=$(hostname 2>/dev/null || printf '%s\n' unknown)
     kernel=$(uname -r 2>/dev/null)
     user=$(whoami 2>/dev/null)
     timestamp=$(utc_timestamp)
@@ -44,7 +44,7 @@ emit_json() {
                 printf ','
             fi
             printf '%s' "$line"
-        done < "$DEVICES_FILE"
+        done <"$DEVICES_FILE"
     fi
     printf '],'
     printf '"summary":{"total_devices":%s,"counts_by_bus":{%s}}' "$DEVICE_COUNT" "$counts"
@@ -52,13 +52,13 @@ emit_json() {
 }
 
 emit_device_list() {
-    [ "$OUTPUT_JSON" -eq 1 ] && return
-    [ ! -f "$HUMAN_LIST_FILE" ] && return
+    [ "$OUTPUT_JSON" -eq 1 ] && return 0
+    [ ! -f "$HUMAN_LIST_FILE" ] && return 0
 
-    echo ""
-    echo "-------------------------------------"
-    echo "DEVICES FOUND"
-    echo "-------------------------------------"
+    printf '\n'
+    printf '%s\n' "-------------------------------------"
+    printf '%s\n' "DEVICES FOUND"
+    printf '%s\n' "-------------------------------------"
     printf '%-10s %-10s %-18s %-10s %-12s %-20s %-14s %s\n' \
         "BUS" "KIND" "NAME" "DRIVER" "SERIAL" "VENDOR" "PRODUCT" "STATE"
     printf '%-10s %-10s %-18s %-10s %-12s %-20s %-14s %s\n' \
@@ -76,48 +76,51 @@ emit_device_list() {
             bus, kind, name, driver, serial, vendor, product, state
     }'
 
-    echo ""
-    echo "  Paths:"
+    printf '\n'
+    printf '%s\n' "  Paths:"
     awk -F '\t' 'NF >= 9 {
         printf "%s\t%s\t%s\n", $3, $1, $9
     }' "$HUMAN_LIST_FILE" | sort -t '	' -k2,2 -k1,1 | awk -F '\t' '{
         printf "    [%s] %s -> %s\n", $2, $1, $3
     }'
-    echo ""
+    printf '\n'
+    return 0
 }
 
 emit_device_names() {
-    [ "$OUTPUT_JSON" -eq 1 ] && return
-    [ "$VERBOSITY" -lt 1 ] && return
-    [ ! -f "$HUMAN_LIST_FILE" ] && return
+    [ "$OUTPUT_JSON" -eq 1 ] && return 0
+    [ "$VERBOSITY" -lt 1 ] && return 0
+    [ ! -f "$HUMAN_LIST_FILE" ] && return 0
 
-    echo ""
-    echo "-------------------------------------"
-    echo "DEVICES FOUND"
-    echo "-------------------------------------"
-    awk -F '\t' 'NF >= 3 { printf "%s\t%s\t%s\n", $3, $1, $2 }' "$HUMAN_LIST_FILE" \
-        | sort -t '	' -k1,1 -k2,2 \
-        | awk -F '\t' '{ printf "  %s  (%s / %s)\n", $1, $2, $3 }'
-    echo ""
+    printf '\n'
+    printf '%s\n' "-------------------------------------"
+    printf '%s\n' "DEVICES FOUND"
+    printf '%s\n' "-------------------------------------"
+    awk -F '\t' 'NF >= 3 { printf "%s\t%s\t%s\n", $3, $1, $2 }' "$HUMAN_LIST_FILE" |
+        sort -t '	' -k1,1 -k2,2 |
+        awk -F '\t' '{ printf "  %s  (%s / %s)\n", $1, $2, $3 }'
+    printf '\n'
+    return 0
 }
 
 emit_human_summary() {
-    [ "$OUTPUT_JSON" -eq 1 ] && return
+    [ "$OUTPUT_JSON" -eq 1 ] && return 0
 
-    echo ""
-    echo "-------------------------------------"
-    echo "SUMMARY"
-    echo "-------------------------------------"
-    echo "  Total recorded devices: $DEVICE_COUNT"
+    printf '\n'
+    printf '%s\n' "-------------------------------------"
+    printf '%s\n' "SUMMARY"
+    printf '%s\n' "-------------------------------------"
+    printf '%s\n' "  Total recorded devices: $DEVICE_COUNT"
 
     if [ -f "$HUMAN_LIST_FILE" ] && [ -s "$HUMAN_LIST_FILE" ]; then
-        echo "  Counts by bus:"
+        printf '%s\n' "  Counts by bus:"
         awk -F '\t' 'NF >= 1 { c[$1]++ } END {
             for (b in c) printf "%d\t%s\n", c[b], b
         }' "$HUMAN_LIST_FILE" | sort -t '	' -k1,1rn -k2,2 | awk -F '\t' '{
             printf "    %4d  %s\n", $1, $2
         }'
     fi
+    return 0
 }
 
 emit_human_report() {
@@ -128,7 +131,7 @@ emit_human_report() {
     if [ "$VERBOSITY" -ge 2 ]; then
         emit_device_list
     fi
-    echo "====================================="
-    echo "   SCAN COMPLETE"
-    echo "====================================="
+    printf '%s\n' "====================================="
+    printf '%s\n' "   SCAN COMPLETE"
+    printf '%s\n' "====================================="
 }

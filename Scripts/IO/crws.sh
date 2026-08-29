@@ -1,36 +1,101 @@
-#!/bin/bash
-# Script to collect the read / write speeds
+#!/usr/bin/env bash
+# crws — sample iotop and keep the top disk read/write rates.
 
-# Check if our folders exists if not creates them
-DIRR="/var/log/IORead"
-DIRW="/var/log/IOWrite"
+set -euo pipefail
+export LC_ALL=C
+unalias -a 2>/dev/null || true
+unset -f rm mv cp grep awk sed cat mkdir tar date iotop 2>/dev/null || true
 
-[ -d "$DIRR" ] || mkdir -p "$DIRR"
-[ -d "$DIRW" ] || mkdir -p "$DIRW"
+readonly PROGNAME="${0##*/}"
+readonly DIRR="/var/log/IORead"
+readonly DIRW="/var/log/IOWrite"
+readonly IOTOP_LOG="/var/log/iotop"
+readonly SAMPLES=590
+readonly DELAY="0.1"
 
-# iotop is a tool that provide the total and the current Reads and Writes on the disk
-# b Non interactive mode
-# o only threads that are doing I/O
-# d seconds of delay between the interactions
-# K use kilobytes
-# qq column names are never printed
-# the following argument will provide only the current output and append it at iotop
+usage() {
+    cat <<EOF
+Usage: $PROGNAME [OPTION]...
+Sample iotop and store the top disk read and write rates.
 
-iotop -boqqk -n 590 -d 0.1 | grep -i Current |grep -iv grep >> /var/log/iotop
+Mandatory arguments to long options are mandatory for short options too.
 
-# The next 2 commands are going to break the iotop file in IORead & IOWrite
+  -h, --help            display this help and exit
 
-cat /var/log/iotop  | tr -s " " | cut -d " " -f 4 | sort -ur | head -n 10 | grep '[0-9][0-9][0-9][0-9]\.' > "$DIRR"/$(date +"%H:%M")
-cat /var/log/iotop  | tr -s " " | cut -d " " -f 10 | sort -ur | head -n 10 | grep '[0-9][0-9][0-9][0-9]\.' > "$DIRW"/$(date +"%H:%M")
+Writes into $DIRR and $DIRW.  Needs iotop and write access to /var/log.
+At midnight the directories are archived and $IOTOP_LOG is truncated.
+EOF
+}
 
+unrecognized_option() {
+    printf '%s: unrecognized option %s\n' "$PROGNAME" "$1" >&2
+    printf "Try '%s --help' for more information.\n" "$PROGNAME" >&2
+}
 
-# the following command will compress the IORead & IOWrite every day at midnight
+parse_args() {
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            -h | --help)
+                usage
+                exit 0
+                ;;
+            --)
+                shift
+                break
+                ;;
+            -*)
+                unrecognized_option "$1"
+                exit 2
+                ;;
+            *)
+                unrecognized_option "$1"
+                exit 2
+                ;;
+        esac
+    done
+}
 
-if [[ $(date +"%H%M") == '0000' ]]
-then
-        tar -zcvf $(date +"%D%M").tar.gz "$DIRR"
-        tar -zcvf $(date +"%D%M").tar.gz "$DIRW"
-        
-        # Empty the iotop logfile once per day
-        echo "" > /var/log/iotop
-fi
+need_cmd() {
+    command -v "$1" >/dev/null 2>&1 || {
+        printf '%s: %s not found\n' "$PROGNAME" "$1" >&2
+        exit 1
+    }
+}
+
+ensure_dirs() {
+    mkdir -p -- "$DIRR" "$DIRW"
+}
+
+sample_iotop() {
+    iotop -boqqk -n "$SAMPLES" -d "$DELAY" | grep -i Current | grep -iv grep >>"$IOTOP_LOG" || true
+}
+
+split_rates() {
+    stamp="$(date +%H:%M)"
+    tr -s ' ' <"$IOTOP_LOG" | cut -d ' ' -f 4 | sort -ur | head -n 10 |
+        grep '[0-9][0-9][0-9][0-9]\.' >"${DIRR}/${stamp}" || true
+    tr -s ' ' <"$IOTOP_LOG" | cut -d ' ' -f 10 | sort -ur | head -n 10 |
+        grep '[0-9][0-9][0-9][0-9]\.' >"${DIRW}/${stamp}" || true
+}
+
+rotate_if_midnight() {
+    if [ "$(date +%H%M)" != "0000" ]; then
+        return 0
+    fi
+    archive="$(date +%D%M).tar.gz"
+    tar -zcvf "$archive" -- "$DIRR"
+    tar -zcvf "$archive" -- "$DIRW"
+    : >"$IOTOP_LOG"
+}
+
+main() {
+    parse_args "$@"
+    need_cmd iotop
+    need_cmd tar
+    ensure_dirs
+    sample_iotop
+    split_rates
+    rotate_if_midnight
+}
+
+main "$@"

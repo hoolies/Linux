@@ -4,8 +4,16 @@ Personal collection of settings and scripts I use across different Linux
 distributions. Everything here is POSIX/Bash shell tooling — no build step,
 just clone and run the script you need.
 
+New and rewritten scripts follow the
+[writing-shell-scripts](Documentation/writing-shell-scripts.md) standard
+(`#!/usr/bin/env`, POSIX unless bash is required, coreutils-style
+`usage()`, `printf` only, `shellcheck` + `shfmt`).  The same text is the
+Cursor skill in `.cursor/skills/writing-shell-scripts/`.
+
 ```
 .
+├── .cursor/skills/writing-shell-scripts/  # Cursor skill (same rules)
+├── Documentation/  # Notes and the shell-script standard
 ├── Scripts/        # General-purpose, distro-agnostic scripts
 │   ├── DeviceDiscovery/   # Hardware inventory suite
 │   ├── Docking/           # Laptop vs. docking-station screen layouts
@@ -13,6 +21,30 @@ just clone and run the script you need.
 │   ├── Ubiquiti/          # Find & adopt UniFi devices on a network
 │   └── Utilities/         # Misc. helpers (serial console, PATH tools, etc.)
 └── Void/           # Void Linux specific tweaks (no systemd)
+```
+
+---
+
+## Script standard
+
+Every executable script is expected to match
+[Documentation/writing-shell-scripts.md](Documentation/writing-shell-scripts.md).
+Copy the `usage()` shape from
+[Documentation/usage-template.md](Documentation/usage-template.md).
+
+In short:
+
+- Shebang is `#!/usr/bin/env sh` or `#!/usr/bin/env bash`.
+- POSIX `sh` unless the script needs bash (`local`, arrays, `[[ ]]`).
+- `set -eu` (POSIX) or `set -euo pipefail` (bash).
+- `--help` uses coreutils wording; unknown options exit 2.
+- `printf` only; diagnostics on stderr; `LC_ALL=C` for text processing.
+- `shellcheck -s sh|bash` clean, then `shfmt -w -i 4 -ci`.
+
+```sh
+shellcheck -s sh path/to/script.sh
+shfmt -w -i 4 -ci path/to/script.sh
+./path/to/script.sh --help
 ```
 
 ---
@@ -78,7 +110,7 @@ Both also restart `conky` and `nitrogen` afterwards.
 - `cursor` — launcher + updater for the Cursor AppImage. Launches the latest
   installed version (detached), or `-u`/`--update` to download the newest
   release from Cursor's API, `--version` to list/pick a version, keeping the
-  newest 4 builds. Install dir defaults to `~/Downloads/Cursor`
+  newest 4 builds. Install dir defaults to `/opt/Cursor`
   (`CURSOR_APPIMAGE_DIR`).
 - `appimage-launcher-setup.sh` — generalizes the `cursor` script: generates a
   matching launcher/updater for *any* AppImage app from a JSON/TOML/YAML
@@ -96,8 +128,8 @@ Both also restart `conky` and `nitrogen` afterwards.
   duplicates. Source it to affect the current session; `--purge` permanently
   comments out dead rc lines (with backup); `-i` interactive; `--install` adds
   a `path_cleaner` shell function; `-r` reports without changing anything.
-- `parteh.sh` — fun terminal-cursor color cycling animation (OSC 12 escapes
-  through a smooth rainbow palette).
+- `party.sh` — cycle the terminal text cursor through a generated hue wheel
+  (OSC 12).  `-d`/`--delay` sets the step interval.
 
 ---
 
@@ -117,9 +149,20 @@ need manual scripts. This folder collects the Void-specific bits.
 
 ---
 
+## Documentation
+
+- [Writing shell scripts](Documentation/writing-shell-scripts.md) — the
+  standard and Cursor skill for this repo.
+- [usage() template](Documentation/usage-template.md) — coreutils help
+  wording.
+- [SSH port-forwarding and tunneling](Documentation/ssh%20port-forwarding%20and%20tunneling.md)
+
+---
+
 ## Requirements
 
-Most scripts are plain POSIX `sh`/Bash. Individual scripts note their extra
-dependencies (e.g. DeviceDiscovery uses standard sysfs tooling; `adopter.sh`
-needs `nmap`/`ssh`/`sshpass`; `cursor` needs `curl`/`jq`; `crws.sh` needs
-`iotop`). Run any script with `-h`/`--help` where available for details.
+Most scripts are plain POSIX `sh`/Bash and follow the script standard
+above. Individual scripts note their extra dependencies (e.g.
+DeviceDiscovery uses standard sysfs tooling; `adopter.sh` needs
+`nmap`/`ssh`/`sshpass`; `cursor` needs `curl`; `crws.sh` needs `iotop`).
+Run any script with `-h`/`--help` for details.

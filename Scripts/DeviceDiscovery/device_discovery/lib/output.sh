@@ -5,23 +5,25 @@ sanitize_field() {
 }
 
 print_section() {
-    [ "$OUTPUT_JSON" -eq 1 ] && return
-    [ "$VERBOSITY" -lt 2 ] && return
-    echo ""
-    echo "-------------------------------------"
-    echo "$1"
-    echo "-------------------------------------"
+    [ "$OUTPUT_JSON" -eq 1 ] && return 0
+    [ "$VERBOSITY" -lt 2 ] && return 0
+    printf '\n'
+    printf '%s\n' "-------------------------------------"
+    printf '%s\n' "$1"
+    printf '%s\n' "-------------------------------------"
+    return 0
 }
 
 print_note() {
-    [ "$OUTPUT_JSON" -eq 1 ] && return
-    [ "$VERBOSITY" -lt 2 ] && return
-    echo "$1"
+    [ "$OUTPUT_JSON" -eq 1 ] && return 0
+    [ "$VERBOSITY" -lt 2 ] && return 0
+    printf '%s\n' "$1"
+    return 0
 }
 
 print_block() {
-    [ "$OUTPUT_JSON" -eq 1 ] && return
-    [ "$VERBOSITY" -lt 2 ] && return
-    echo "$1"
+    [ "$OUTPUT_JSON" -eq 1 ] && return 0
+    [ "$VERBOSITY" -lt 2 ] && return 0
+    printf '%s\n' "$1"
+    return 0
 }
-

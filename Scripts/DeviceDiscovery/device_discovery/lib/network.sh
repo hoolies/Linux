@@ -40,13 +40,13 @@ _tcp_port_open_bash() {
     DD_TCP_HOST=$_host DD_TCP_PORT=$_port
     export DD_TCP_HOST DD_TCP_PORT
     if path_has_binary timeout; then
-        # shellcheck disable=SC2016 -- expanded by bash, not sh
-        timeout "$_timeout" bash -c 'echo >"/dev/tcp/${DD_TCP_HOST}/${DD_TCP_PORT}"' \
+        # shellcheck disable=SC2016
+        timeout "$_timeout" bash -c 'true >"/dev/tcp/${DD_TCP_HOST}/${DD_TCP_PORT}"' \
             >/dev/null 2>&1
         return $?
     fi
     # shellcheck disable=SC2016
-    bash -c 'echo >"/dev/tcp/${DD_TCP_HOST}/${DD_TCP_PORT}"' >/dev/null 2>&1
+    bash -c 'true >"/dev/tcp/${DD_TCP_HOST}/${DD_TCP_PORT}"' >/dev/null 2>&1
 }
 
 # Return 0 if host:port accepts TCP, 1 if not, 2 if args invalid, 127 if no backend.
@@ -114,12 +114,15 @@ net_iface_kind() {
     netpath="/sys/class/net/${iface}"
 
     case "$iface" in
-        lo) printf '%s' virtual; return ;;
-        docker*|veth*|virbr*|kube-*|flannel*|cali*|cni*|podman*)
+        lo)
             printf '%s' virtual
             return
             ;;
-        tun*|tap*|wg*|tailscale*|ts*|nordlynx*|ppp*)
+        docker* | veth* | virbr* | kube-* | flannel* | cali* | cni* | podman*)
+            printf '%s' virtual
+            return
+            ;;
+        tun* | tap* | wg* | tailscale* | ts* | nordlynx* | ppp*)
             printf '%s' tunnel
             return
             ;;
@@ -136,10 +139,22 @@ net_iface_kind() {
     fi
 
     case "$iface" in
-        bond*) printf '%s' bond; return ;;
-        br-*) printf '%s' bridge; return ;;
-        *@*|*.vlan*|vlan*) printf '%s' vlan; return ;;
-        can*|vcan*) printf '%s' physical; return ;;
+        bond*)
+            printf '%s' bond
+            return
+            ;;
+        br-*)
+            printf '%s' bridge
+            return
+            ;;
+        *@* | *.vlan* | vlan*)
+            printf '%s' vlan
+            return
+            ;;
+        can* | vcan*)
+            printf '%s' physical
+            return
+            ;;
     esac
 
     if iface_is_wireless "$iface"; then

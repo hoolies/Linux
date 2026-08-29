@@ -3,24 +3,24 @@
 print_nonroot_notice() {
     _fd=$1
     {
-        echo "NOTICE: Not running as root — some checks may be incomplete."
-        echo ""
+        printf '%s\n' "NOTICE: Not running as root — some checks may be incomplete."
+        printf '\n'
         if path_has_binary dmesg; then
-            echo "  - dmesg              kernel ring buffer"
+            printf '%s\n' "  - dmesg              kernel ring buffer"
         fi
         if path_has_binary bluetoothctl; then
-            echo "  - bluetoothctl       paired devices"
+            printf '%s\n' "  - bluetoothctl       paired devices"
         fi
         if path_has_binary mmcli; then
-            echo "  - mmcli              cellular modems"
+            printf '%s\n' "  - mmcli              cellular modems"
         fi
         if path_has_binary udevadm; then
-            echo "  - udevadm            restricted device attributes"
+            printf '%s\n' "  - udevadm            restricted device attributes"
         fi
         if path_has_binary iscsiadm; then
-            echo "  - iscsiadm           iSCSI sessions"
+            printf '%s\n' "  - iscsiadm           iSCSI sessions"
         fi
-        echo ""
+        printf '\n'
     } >&"$_fd"
 }
 
@@ -37,9 +37,9 @@ check_privileges() {
 
     if [ "$NONINTERACTIVE" -eq 1 ] || [ ! -t 0 ] || [ ! -t 1 ]; then
         if [ "$OUTPUT_JSON" -eq 1 ]; then
-            echo "Continuing without sudo (non-interactive)." >&2
+            printf '%s\n' "Continuing without sudo (non-interactive)." >&2
         else
-            echo "Continuing without sudo (non-interactive)."
+            printf '%s\n' "Continuing without sudo (non-interactive)."
         fi
         return 0
     fi
@@ -50,7 +50,7 @@ check_privileges() {
         printf "Re-run with sudo for full output? (y/n): "
     fi
     IFS= read -r _response
-    echo ""
+    printf '\n'
     case "$_response" in
         [Yy]*)
             require_binary sudo
@@ -58,9 +58,9 @@ check_privileges() {
             ;;
         *)
             if [ "$OUTPUT_JSON" -eq 1 ]; then
-                echo "Continuing without sudo." >&2
+                printf '%s\n' "Continuing without sudo." >&2
             else
-                echo "Continuing without sudo."
+                printf '%s\n' "Continuing without sudo."
             fi
             ;;
     esac

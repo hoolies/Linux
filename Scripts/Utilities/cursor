@@ -1,190 +1,329 @@
 #!/usr/bin/env bash
-# cursor: launcher + updater for the Cursor AppImage.
-#
-#   cursor                  launch the latest version (output hidden, detached)
-#   cursor -v|--verbose     launch the latest version with full output in terminal
-#   cursor -u|--update      download/install the latest version (keeps newest 4)
-#   cursor --update --force  re-download even if already up to date
-#   cursor --version        list the current version and versions in the Cursor folder
-#   cursor --version X.Y.Z  launch a specific installed version
-#   cursor -h|--help        show this help
-#
-# Any other arguments are passed through to the AppImage when launching.
+# cursor — launch or update the Cursor AppImage.
+
 set -euo pipefail
+export LC_ALL=C
+unalias -a 2>/dev/null || true
+unset -f curl rm mv cp grep find sort file chmod mkdir nohup fzf paste 2>/dev/null || true
 
-API_URL='https://cursor.com/api/download?platform=linux-x64&releaseTrack=stable'
-INSTALL_DIR="${CURSOR_APPIMAGE_DIR:-$HOME/Downloads/Cursor}"
-KEEP=4
+readonly PROGNAME="${0##*/}"
+readonly API_URL='https://api2.cursor.sh/updates/download/golden/linux-x64/cursor/latest'
+readonly KEEP=4
+readonly VERSION_RE='^[0-9]+\.[0-9]+\.[0-9]+$'
 
-DO_UPDATE=0
-SHOW_VERSION=0
-PICK_VERSION=''
-FORCE=0
-VERBOSE=0
-PASSTHRU=()
+INSTALL_DIR="${CURSOR_APPIMAGE_DIR:-/opt/Cursor}"
+readonly INSTALL_DIR
 
-log() { printf 'cursor: %s\n' "$*" >&2; }
-die() { log "error: $*"; exit 1; }
+TEMP_FILES=()
+
+cleanup_temps() {
+    local f
+    for f in ${TEMP_FILES[@]+"${TEMP_FILES[@]}"}; do
+        rm -f -- "$f"
+    done
+}
+trap cleanup_temps EXIT
+
+make_temp() {
+    local t
+    t="$(mktemp "${TMPDIR:-/tmp}/cursor.XXXXXX")"
+    TEMP_FILES+=("$t")
+    printf '%s\n' "$t"
+}
 
 usage() {
-  cat <<'EOF'
-Usage: cursor [options] [-- args passed to Cursor]
+    cat <<EOF
+Usage: $PROGNAME [OPTION]... [ARG]...
+Launch Cursor or update the installed AppImage.
 
-  (no options)        Launch the latest installed version (output hidden)
-  -v, --verbose       Launch with full output shown in the terminal
-  -u, --update        Download and install the latest version (keeps newest 4)
-  -f, --force         With --update: re-download even if up to date
-      --version       List current version and versions in the Cursor folder
-      --version X.Y.Z Launch a specific installed version
-  -h, --help          Show this help
+Mandatory arguments to long options are mandatory for short options too.
 
-Environment:
-  CURSOR_APPIMAGE_DIR   Install directory (default: ~/Downloads/Cursor)
+  -u, --update          download and install the latest version
+  -f, --force           with --update, re-download even if up to date
+  -v, --verbose         launch with output shown in the terminal
+      --list            pick an installed version with fzf
+      --version         list installed versions
+      --version X.Y.Z   launch a specific installed version
+  -h, --help            display this help and exit
+
+Arguments after the options are passed to the AppImage.
+Use -- to stop option parsing.  CURSOR_APPIMAGE_DIR overrides the
+install directory (default /opt/Cursor).
 EOF
 }
 
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    -u|--update) DO_UPDATE=1; shift ;;
-    -f|--force) FORCE=1; shift ;;
-    -v|--verbose) VERBOSE=1; shift ;;
-    --version)
-      SHOW_VERSION=1; shift
-      if [[ $# -gt 0 && "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        PICK_VERSION=$1; shift
-      fi
-      ;;
-    -h|--help) usage; exit 0 ;;
-    --) shift; PASSTHRU+=("$@"); break ;;
-    *) PASSTHRU+=("$1"); shift ;;
-  esac
-done
+log() {
+    printf '%s: %s\n' "$PROGNAME" "$*" >&2
+}
 
-mkdir -p "$INSTALL_DIR"
+die() {
+    log "error: $*"
+    exit 1
+}
+
+need_cmd() {
+    command -v "$1" >/dev/null 2>&1 || die "missing command: $1"
+}
+
+parse_args() {
+    DO_UPDATE=0
+    SHOW_VERSION=0
+    DO_LIST=0
+    PICK_VERSION=""
+    FORCE=0
+    VERBOSE=0
+    PASSTHRU=()
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            -h | --help)
+                usage
+                exit 0
+                ;;
+            -u | --update)
+                DO_UPDATE=1
+                shift
+                ;;
+            -f | --force)
+                FORCE=1
+                shift
+                ;;
+            -v | --verbose)
+                VERBOSE=1
+                shift
+                ;;
+            --list)
+                DO_LIST=1
+                shift
+                ;;
+            --version)
+                SHOW_VERSION=1
+                shift
+                if [ "$#" -gt 0 ] && [[ "$1" =~ $VERSION_RE ]]; then
+                    PICK_VERSION="$1"
+                    shift
+                fi
+                ;;
+            --version=*)
+                SHOW_VERSION=1
+                PICK_VERSION="${1#--version=}"
+                if [ -n "$PICK_VERSION" ] && ! [[ "$PICK_VERSION" =~ $VERSION_RE ]]; then
+                    printf '%s: invalid version %s\n' "$PROGNAME" "$PICK_VERSION" >&2
+                    printf "Try '%s --help' for more information.\n" "$PROGNAME" >&2
+                    exit 2
+                fi
+                shift
+                ;;
+            --)
+                shift
+                while [ "$#" -gt 0 ]; do
+                    PASSTHRU+=("$1")
+                    shift
+                done
+                return 0
+                ;;
+            *)
+                # Wrapper: leftover args (including unknown options) go to Cursor.
+                PASSTHRU+=("$1")
+                shift
+                ;;
+        esac
+    done
+}
+
+ensure_install_dir() {
+    mkdir -p -- "$INSTALL_DIR"
+}
 
 ver_of() {
-  local f=$1
-  [[ "$f" =~ Cursor-([0-9]+\.[0-9]+\.[0-9]+)-x86_64\.AppImage ]] && echo "${BASH_REMATCH[1]}"
+    local f="$1"
+    if [[ "$f" =~ Cursor-([0-9]+\.[0-9]+\.[0-9]+)-x86_64\.AppImage ]]; then
+        printf '%s\n' "${BASH_REMATCH[1]}"
+    fi
+    return 0
 }
 
 list_appimages() {
-  find "$INSTALL_DIR" -maxdepth 1 -name 'Cursor-*.AppImage' -type f 2>/dev/null | sort -V
+    find -- "$INSTALL_DIR" -maxdepth 1 -name 'Cursor-*.AppImage' -type f 2>/dev/null | sort -V
 }
 
 latest_appimage() {
-  local all
-  mapfile -t all < <(list_appimages)
-  [[ ${#all[@]} -gt 0 ]] && echo "${all[-1]}"
+    local all=()
+    mapfile -t all < <(list_appimages)
+    if [ "${#all[@]}" -gt 0 ]; then
+        printf '%s\n' "${all[-1]}"
+    fi
+    return 0
 }
 
 appimage_for() {
-  local v=$1 p="$INSTALL_DIR/Cursor-${1}-x86_64.AppImage"
-  [[ -f "$p" ]] && echo "$p"
+    local p="$INSTALL_DIR/Cursor-${1}-x86_64.AppImage"
+    if [ -f "$p" ]; then
+        printf '%s\n' "$p"
+    fi
+    return 0
 }
 
 launch() {
-  local app=$1; shift
-  [[ -x "$app" ]] || chmod +x "$app" 2>/dev/null || true
-  if [[ "$VERBOSE" -eq 1 ]]; then
-    log "launching $app (verbose)"
-    exec "$app" "$@"
-  else
-    nohup "$app" "$@" >/dev/null 2>&1 < /dev/null &
+    local app="$1"
+    shift
+    if [ ! -x "$app" ]; then
+        chmod +x -- "$app" 2>/dev/null || true
+    fi
+    if [ "$VERBOSE" -eq 1 ]; then
+        log "launching $app (verbose)"
+        exec -- "$app" "$@"
+    fi
+    nohup -- "$app" "$@" >/dev/null 2>&1 </dev/null &
     disown 2>/dev/null || true
-  fi
 }
 
-need_cmd() { command -v "$1" >/dev/null 2>&1 || die "missing command: $1"; }
+available_versions() {
+    local f
+    while IFS= read -r f; do
+        ver_of "$f"
+    done < <(list_appimages | sort -rV)
+}
+
+pick_version_fzf() {
+    local current current_ver all=() lines=() f v picked
+    need_cmd fzf
+    current="$(latest_appimage)"
+    current_ver=""
+    if [ -n "$current" ]; then
+        current_ver="$(ver_of "$current")"
+    fi
+    mapfile -t all < <(list_appimages | sort -rV)
+    if [ "${#all[@]}" -eq 0 ]; then
+        die "no versions installed in $INSTALL_DIR (run: $PROGNAME --update)"
+    fi
+    for f in "${all[@]}"; do
+        v="$(ver_of "$f")"
+        if [ "$v" = "$current_ver" ]; then
+            lines+=("$v  *")
+        else
+            lines+=("$v")
+        fi
+    done
+    picked="$(printf '%s\n' "${lines[@]}" | fzf --prompt='cursor version> ' --height=~40%)" || exit 0
+    if ! [[ "$picked" =~ ^([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+        die "invalid selection: $picked"
+    fi
+    PICK_VERSION="${BASH_REMATCH[1]}"
+}
 
 prune_old() {
-  local all
-  mapfile -t all < <(list_appimages)
-  local total=${#all[@]}
-  if (( total > KEEP )); then
-    local i remove=$(( total - KEEP ))
-    for (( i = 0; i < remove; i++ )); do
-      log "pruning old version: $(ver_of "${all[i]}")"
-      rm -f "${all[i]}"
+    local all=() total remove i
+    mapfile -t all < <(list_appimages)
+    total="${#all[@]}"
+    if [ "$total" -le "$KEEP" ]; then
+        return 0
+    fi
+    remove=$((total - KEEP))
+    i=0
+    while [ "$i" -lt "$remove" ]; do
+        log "pruning old version: $(ver_of "${all[i]}")"
+        rm -f -- "${all[i]}"
+        i=$((i + 1))
     done
-  fi
 }
 
 do_update() {
-  need_cmd curl
-  need_cmd jq
-
-  local current
-  current=$(latest_appimage || true)
-  local local_ver=''
-  [[ -n "$current" ]] && local_ver=$(ver_of "$current")
-  log "local:  ${local_ver:-none}"
-
-  local meta remote_ver download_url
-  meta=$(curl -fsSL "$API_URL") || die "failed to fetch release metadata"
-  remote_ver=$(jq -r '.version' <<<"$meta")
-  download_url=$(jq -r '.downloadUrl' <<<"$meta")
-  [[ -n "$remote_ver" && "$remote_ver" != null ]] || die "invalid API response (version)"
-  [[ -n "$download_url" && "$download_url" != null ]] || die "invalid API response (downloadUrl)"
-  log "remote: $remote_ver"
-
-  if [[ "$local_ver" == "$remote_ver" && "$FORCE" -eq 0 ]]; then
-    log "already up to date."
+    local current local_ver download_url remote_ver dest tmp
+    need_cmd curl
+    current="$(latest_appimage)"
+    local_ver=""
+    if [ -n "$current" ]; then
+        local_ver="$(ver_of "$current")"
+    fi
+    log "local:  ${local_ver:-none}"
+    download_url="$(curl -fsSL -o /dev/null -w '%{url_effective}' "$API_URL")" ||
+        die "failed to resolve latest release URL"
+    if ! [[ "$download_url" =~ Cursor-([0-9]+\.[0-9]+\.[0-9]+)-x86_64\.AppImage ]]; then
+        die "unexpected download URL: $download_url"
+    fi
+    remote_ver="${BASH_REMATCH[1]}"
+    log "remote: $remote_ver"
+    if [ "$local_ver" = "$remote_ver" ] && [ "$FORCE" -eq 0 ]; then
+        log "already up to date."
+        prune_old
+        return 0
+    fi
+    dest="$INSTALL_DIR/Cursor-${remote_ver}-x86_64.AppImage"
+    tmp="$(make_temp)"
+    log "downloading $remote_ver ..."
+    curl -fL --progress-bar "$download_url" -o "$tmp"
+    if ! file -- "$tmp" | grep -q 'ELF 64-bit'; then
+        die "download is not a valid AppImage"
+    fi
+    chmod +x -- "$tmp"
+    rm -f -- "$dest"
+    mv -- "$tmp" "$dest"
+    log "installed: $dest"
     prune_old
-    return 0
-  fi
-
-  local dest="$INSTALL_DIR/Cursor-${remote_ver}-x86_64.AppImage"
-  local tmp="${dest}.part.$$"
-  log "downloading $remote_ver ..."
-  curl -fL --progress-bar "$download_url" -o "$tmp"
-  file "$tmp" | grep -q 'ELF 64-bit' || { rm -f "$tmp"; die "download is not a valid AppImage"; }
-  chmod +x "$tmp"
-  rm -f "$dest"
-  mv "$tmp" "$dest"
-  log "installed: $dest"
-  prune_old
 }
 
-# --- dispatch ---------------------------------------------------------------
-
-if [[ "$DO_UPDATE" -eq 1 ]]; then
-  do_update
-  exit 0
-fi
-
-if [[ "$SHOW_VERSION" -eq 1 && -z "$PICK_VERSION" ]]; then
-  current=$(latest_appimage || true)
-  current_ver=''
-  [[ -n "$current" ]] && current_ver=$(ver_of "$current")
-  if [[ -z "$current_ver" ]]; then
-    log "no versions installed in $INSTALL_DIR (run: cursor --update)"
-    exit 1
-  fi
-  printf 'Current: %s\n' "$current_ver"
-  printf 'Available in %s:\n' "$INSTALL_DIR"
-  while IFS= read -r f; do
-    v=$(ver_of "$f")
-    if [[ "$v" == "$current_ver" ]]; then
-      printf '  %s  *\n' "$v"
-    else
-      printf '  %s\n' "$v"
+print_versions() {
+    local current current_ver f v
+    current="$(latest_appimage)"
+    current_ver=""
+    if [ -n "$current" ]; then
+        current_ver="$(ver_of "$current")"
     fi
-  done < <(list_appimages | sort -rV)
-  exit 0
-fi
+    if [ -z "$current_ver" ]; then
+        log "no versions installed in $INSTALL_DIR (run: $PROGNAME --update)"
+        exit 1
+    fi
+    printf 'Current: %s\n' "$current_ver"
+    printf 'Available in %s:\n' "$INSTALL_DIR"
+    while IFS= read -r f; do
+        v="$(ver_of "$f")"
+        if [ "$v" = "$current_ver" ]; then
+            printf '  %s  *\n' "$v"
+        else
+            printf '  %s\n' "$v"
+        fi
+    done < <(list_appimages | sort -rV)
+}
 
-if [[ -n "$PICK_VERSION" ]]; then
-  app=$(appimage_for "$PICK_VERSION" || true)
-  if [[ -z "$app" ]]; then
-    log "version $PICK_VERSION not found in $INSTALL_DIR"
-    log "available: $(list_appimages | while IFS= read -r f; do ver_of "$f"; done | sort -rV | paste -sd' ' -)"
-    exit 1
-  fi
-  launch "$app" "${PASSTHRU[@]}"
-  exit 0
-fi
+launch_version() {
+    local app
+    app="$(appimage_for "$PICK_VERSION")"
+    if [ -z "$app" ]; then
+        log "version $PICK_VERSION not found in $INSTALL_DIR"
+        log "available: $(available_versions | paste -sd' ' -)"
+        exit 1
+    fi
+    launch "$app" "${PASSTHRU[@]}"
+}
 
-# default: launch latest
-app=$(latest_appimage || true)
-[[ -n "$app" ]] || die "no Cursor installed in $INSTALL_DIR (run: cursor --update)"
-launch "$app" "${PASSTHRU[@]}"
+launch_latest() {
+    local app
+    app="$(latest_appimage)"
+    if [ -z "$app" ]; then
+        die "no Cursor installed in $INSTALL_DIR (run: $PROGNAME --update)"
+    fi
+    launch "$app" "${PASSTHRU[@]}"
+}
+
+main() {
+    parse_args "$@"
+    ensure_install_dir
+    if [ "$DO_UPDATE" -eq 1 ]; then
+        do_update
+        exit 0
+    fi
+    if [ "$DO_LIST" -eq 1 ]; then
+        pick_version_fzf
+    fi
+    if [ "$SHOW_VERSION" -eq 1 ] && [ -z "$PICK_VERSION" ]; then
+        print_versions
+        exit 0
+    fi
+    if [ -n "$PICK_VERSION" ]; then
+        launch_version
+        exit 0
+    fi
+    launch_latest
+}
+
+main "$@"

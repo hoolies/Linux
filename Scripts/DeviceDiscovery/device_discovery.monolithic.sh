@@ -1,12 +1,13 @@
 #!/usr/bin/env sh
-# shellcheck shell=sh
 # Device Discovery — monolithic single-file (generated from device_discovery/)
 # Regenerate: device_discovery/tools/build-monolithic.sh
 
-set -u
+set -eu
+export LC_ALL=C
+unalias -a 2>/dev/null || true
 SCRIPT_VERSION=2.0.0-monolithic
+PROGNAME=${0##*/}
 DD_ENTRY=${0:-device_discovery.monolithic.sh}
-
 
 OUTPUT_JSON=0
 PHYSICAL_ONLY=0
@@ -24,47 +25,33 @@ BUS_COUNTS_FILE=""
 DEVICE_COUNT=0
 WIRELESS_IFACES=""
 
-print_help() {
-    cat <<'EOF'
-Device Discovery — Linux hardware and connection inventory
+usage() {
+    cat <<EOF
+Usage: ${PROGNAME:-device_discovery.sh} [OPTION]...
+Scan Linux hardware and print a device inventory.
 
-Modular scan under device_discovery/collectors/ (one module per bus/type).
-Single-file edition: device_discovery.monolithic.sh (same behavior).
-Scans sysfs, /dev, and optional system tools. Results go to stdout.
+Mandatory arguments to long options are mandatory for short options too.
 
-USAGE
-  device_discovery.sh [OPTIONS]
-
-OPTIONS
-  -h, --help       Show this help and exit.
-  --version        Print version and exit.
-  --no-prompt      Never prompt for sudo (CI, pipes, --json).
-  --json           Single JSON document (meta, devices, summary).
-  -v               Summary plus device names.
-  -vv              Full diagnostics, then summary and device table.
-  --physical-only  Omit virtual devices (docker, loopback, vcan, etc.).
-  --full           With -vv: deep /dev and /sys listings (implies -vv).
-  --pci-all        Include PCI bridges and root complexes (default skips them).
-  --posix          Strict POSIX: verify tools in PATH; no readlink.
-
-STABLE IDs
-  Each device id is derived from bus + sysfs path (or name), so ids are stable
-  across runs on the same machine (e.g. pci__bus_pci_devices_0000_00_14_0).
-
-EXAMPLES
-  device_discovery.sh
-  device_discovery.sh -v
-  device_discovery.sh --json --no-prompt > devices.json
-  device_discovery.sh --pci-all -vv
-  sudo device_discovery.sh -vv --full
-
-EXIT STATUS
-  0 success  1 usage error  127 missing required binary in PATH
+      --json            print a single JSON document
+  -v                    summary plus device names
+  -vv                   full diagnostics, then summary and device table
+      --physical-only   omit virtual devices
+      --full            with -vv, also dump /dev and /sys (implies -vv)
+      --pci-all         include PCI bridges and root complexes
+      --posix           strict POSIX: verify tools in PATH; no readlink
+      --no-prompt       never prompt for sudo
+      --version         print version and exit
+  -h, --help            display this help and exit
 EOF
 }
 
+unrecognized_option() {
+    printf '%s: unrecognized option %s\n' "${PROGNAME:-device_discovery.sh}" "$1" >&2
+    printf "Try '%s --help' for more information.\n" "${PROGNAME:-device_discovery.sh}" >&2
+}
+
 parse_args() {
-    while [ $# -gt 0 ]; do
+    while [ "$#" -gt 0 ]; do
         case "$1" in
             --json) OUTPUT_JSON=1 ;;
             -vv) VERBOSITY=2 ;;
@@ -73,26 +60,40 @@ parse_args() {
                 [ "$VERBOSITY" -gt 2 ] && VERBOSITY=2
                 ;;
             --physical-only) PHYSICAL_ONLY=1 ;;
-            --full) FULL_DUMP=1; VERBOSITY=2 ;;
+            --full)
+                FULL_DUMP=1
+                VERBOSITY=2
+                ;;
             --posix) FORCE_POSIX=1 ;;
             --pci-all) PCI_ALL=1 ;;
             --no-prompt) NONINTERACTIVE=1 ;;
             --version)
-                echo "device_discovery.sh ${SCRIPT_VERSION}"
+                printf '%s %s\n' "${PROGNAME:-device_discovery.sh}" "$SCRIPT_VERSION"
                 exit 0
                 ;;
-            -h|--help)
-                print_help
+            -h | --help)
+                usage
                 exit 0
+                ;;
+            --)
+                shift
+                break
+                ;;
+            -*)
+                unrecognized_option "$1"
+                exit 2
                 ;;
             *)
-                echo "Unknown option: $1" >&2
-                echo "Try: device_discovery.sh --help" >&2
-                exit 1
+                unrecognized_option "$1"
+                exit 2
                 ;;
         esac
         shift
     done
+    if [ "$#" -gt 0 ]; then
+        unrecognized_option "$1"
+        exit 2
+    fi
 }
 
 # Return 0 if any glob expands to at least one directory.
@@ -107,33 +108,33 @@ glob_has_dirs() {
     return 1
 }
 
-
 sanitize_field() {
     printf '%s' "$1" | tr '\t\n\r' '   '
 }
 
 print_section() {
-    [ "$OUTPUT_JSON" -eq 1 ] && return
-    [ "$VERBOSITY" -lt 2 ] && return
-    echo ""
-    echo "-------------------------------------"
-    echo "$1"
-    echo "-------------------------------------"
+    [ "$OUTPUT_JSON" -eq 1 ] && return 0
+    [ "$VERBOSITY" -lt 2 ] && return 0
+    printf '\n'
+    printf '%s\n' "-------------------------------------"
+    printf '%s\n' "$1"
+    printf '%s\n' "-------------------------------------"
+    return 0
 }
 
 print_note() {
-    [ "$OUTPUT_JSON" -eq 1 ] && return
-    [ "$VERBOSITY" -lt 2 ] && return
-    echo "$1"
+    [ "$OUTPUT_JSON" -eq 1 ] && return 0
+    [ "$VERBOSITY" -lt 2 ] && return 0
+    printf '%s\n' "$1"
+    return 0
 }
 
 print_block() {
-    [ "$OUTPUT_JSON" -eq 1 ] && return
-    [ "$VERBOSITY" -lt 2 ] && return
-    echo "$1"
+    [ "$OUTPUT_JSON" -eq 1 ] && return 0
+    [ "$VERBOSITY" -lt 2 ] && return 0
+    printf '%s\n' "$1"
+    return 0
 }
-
-
 
 utc_timestamp() {
     _saved_tz=${TZ-}
@@ -181,7 +182,6 @@ json_object() {
     printf '{%s}' "$_out"
 }
 
-
 _path_probe() {
     _name=$1
     (
@@ -206,9 +206,9 @@ init_path_cache() {
         head grep tail find ls sh bash cat nc timeout \
         awk sed tr wc basename date hostname uname whoami id; do
         if _path_probe "$_bin"; then
-            printf '%s=1\n' "$_bin" >> "$PATH_CACHE_FILE"
+            printf '%s=1\n' "$_bin" >>"$PATH_CACHE_FILE"
         else
-            printf '%s=0\n' "$_bin" >> "$PATH_CACHE_FILE"
+            printf '%s=0\n' "$_bin" >>"$PATH_CACHE_FILE"
         fi
     done
 }
@@ -224,12 +224,12 @@ path_has_binary() {
     fi
     if _path_probe "$_name"; then
         if [ -f "$PATH_CACHE_FILE" ]; then
-            printf '%s=1\n' "$_name" >> "$PATH_CACHE_FILE"
+            printf '%s=1\n' "$_name" >>"$PATH_CACHE_FILE"
         fi
         return 0
     fi
     if [ -f "$PATH_CACHE_FILE" ]; then
-        printf '%s=0\n' "$_name" >> "$PATH_CACHE_FILE"
+        printf '%s=0\n' "$_name" >>"$PATH_CACHE_FILE"
     fi
     return 1
 }
@@ -238,7 +238,7 @@ require_binary() {
     if path_has_binary "$1"; then
         return 0
     fi
-    echo "Error: required binary is not installed in PATH: $1" >&2
+    printf '%s\n' "Error: required binary is not installed in PATH: $1" >&2
     exit 127
 }
 
@@ -252,7 +252,7 @@ require_binary_one_of() {
     for _candidate in "$@"; do
         _needed="${_needed}${_needed:+ }${_candidate}"
     done
-    echo "Error: required binary is not installed in PATH (need one of): ${_needed}" >&2
+    printf '%s\n' "Error: required binary is not installed in PATH (need one of): ${_needed}" >&2
     exit 127
 }
 
@@ -304,7 +304,6 @@ enforce_posix_mode() {
     fi
 }
 
-
 sysfs_read() {
     f=$1
     if [ -f "$f" ]; then
@@ -346,7 +345,7 @@ driver_name_for_sysfs() {
         _target=$(read_symlink_target "$_driver_link")
         _driver=${_target##*/}
     fi
-    printf '%s\t%s\n' "$_devpath" "$_driver" >> "$DRIVER_CACHE_FILE"
+    printf '%s\t%s\n' "$_devpath" "$_driver" >>"$DRIVER_CACHE_FILE"
     printf '%s' "$_driver"
 }
 
@@ -366,7 +365,7 @@ stable_device_id() {
 pci_is_bridge_class() {
     _class=$1
     case "$_class" in
-        0x0604*|0x060000|0x060100) return 0 ;;
+        0x0604* | 0x060000 | 0x060100) return 0 ;;
     esac
     return 1
 }
@@ -381,7 +380,6 @@ should_skip_pci_device() {
     fi
     return 1
 }
-
 
 # Return 0 if $1 looks like a safe host literal for connect probes.
 tcp_probe_valid_host() {
@@ -423,13 +421,13 @@ _tcp_port_open_bash() {
     DD_TCP_HOST=$_host DD_TCP_PORT=$_port
     export DD_TCP_HOST DD_TCP_PORT
     if path_has_binary timeout; then
-        # shellcheck disable=SC2016 -- expanded by bash, not sh
-        timeout "$_timeout" bash -c 'echo >"/dev/tcp/${DD_TCP_HOST}/${DD_TCP_PORT}"' \
+        # shellcheck disable=SC2016
+        timeout "$_timeout" bash -c 'true >"/dev/tcp/${DD_TCP_HOST}/${DD_TCP_PORT}"' \
             >/dev/null 2>&1
         return $?
     fi
     # shellcheck disable=SC2016
-    bash -c 'echo >"/dev/tcp/${DD_TCP_HOST}/${DD_TCP_PORT}"' >/dev/null 2>&1
+    bash -c 'true >"/dev/tcp/${DD_TCP_HOST}/${DD_TCP_PORT}"' >/dev/null 2>&1
 }
 
 # Return 0 if host:port accepts TCP, 1 if not, 2 if args invalid, 127 if no backend.
@@ -497,12 +495,15 @@ net_iface_kind() {
     netpath="/sys/class/net/${iface}"
 
     case "$iface" in
-        lo) printf '%s' virtual; return ;;
-        docker*|veth*|virbr*|kube-*|flannel*|cali*|cni*|podman*)
+        lo)
             printf '%s' virtual
             return
             ;;
-        tun*|tap*|wg*|tailscale*|ts*|nordlynx*|ppp*)
+        docker* | veth* | virbr* | kube-* | flannel* | cali* | cni* | podman*)
+            printf '%s' virtual
+            return
+            ;;
+        tun* | tap* | wg* | tailscale* | ts* | nordlynx* | ppp*)
             printf '%s' tunnel
             return
             ;;
@@ -519,10 +520,22 @@ net_iface_kind() {
     fi
 
     case "$iface" in
-        bond*) printf '%s' bond; return ;;
-        br-*) printf '%s' bridge; return ;;
-        *@*|*.vlan*|vlan*) printf '%s' vlan; return ;;
-        can*|vcan*) printf '%s' physical; return ;;
+        bond*)
+            printf '%s' bond
+            return
+            ;;
+        br-*)
+            printf '%s' bridge
+            return
+            ;;
+        *@* | *.vlan* | vlan*)
+            printf '%s' vlan
+            return
+            ;;
+        can* | vcan*)
+            printf '%s' physical
+            return
+            ;;
     esac
 
     if iface_is_wireless "$iface"; then
@@ -545,14 +558,13 @@ net_iface_kind() {
     printf '%s' virtual
 }
 
-
 should_include_kind() {
     kind=$1
     if [ "$PHYSICAL_ONLY" -eq 0 ]; then
         return 0
     fi
     case "$kind" in
-        physical|wireless) return 0 ;;
+        physical | wireless) return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -565,7 +577,7 @@ seen_device_id() {
 }
 
 remember_device_id() {
-    printf '%s\n' "$1" >> "$SEEN_IDS_FILE"
+    printf '%s\n' "$1" >>"$SEEN_IDS_FILE"
 }
 
 add_device() {
@@ -611,10 +623,10 @@ add_device() {
         "$(_json_esc_one "$product")" \
         "$(_json_esc_one "$serial")" \
         "$(_json_esc_one "$state")" \
-        "$details" >> "$DEVICES_FILE"
+        "$details" >>"$DEVICES_FILE"
 
     if [ -n "$BUS_COUNTS_FILE" ]; then
-        printf '%s\n' "$bus" >> "$BUS_COUNTS_FILE"
+        printf '%s\n' "$bus" >>"$BUS_COUNTS_FILE"
     fi
 
     if [ "$OUTPUT_JSON" -eq 0 ] && [ -n "$HUMAN_LIST_FILE" ]; then
@@ -627,32 +639,31 @@ add_device() {
             "$(sanitize_field "$vendor")" \
             "$(sanitize_field "$product")" \
             "$(sanitize_field "$serial")" \
-            "$(sanitize_field "$state")" >> "$HUMAN_LIST_FILE"
+            "$(sanitize_field "$state")" >>"$HUMAN_LIST_FILE"
     fi
 }
-
 
 print_nonroot_notice() {
     _fd=$1
     {
-        echo "NOTICE: Not running as root — some checks may be incomplete."
-        echo ""
+        printf '%s\n' "NOTICE: Not running as root — some checks may be incomplete."
+        printf '\n'
         if path_has_binary dmesg; then
-            echo "  - dmesg              kernel ring buffer"
+            printf '%s\n' "  - dmesg              kernel ring buffer"
         fi
         if path_has_binary bluetoothctl; then
-            echo "  - bluetoothctl       paired devices"
+            printf '%s\n' "  - bluetoothctl       paired devices"
         fi
         if path_has_binary mmcli; then
-            echo "  - mmcli              cellular modems"
+            printf '%s\n' "  - mmcli              cellular modems"
         fi
         if path_has_binary udevadm; then
-            echo "  - udevadm            restricted device attributes"
+            printf '%s\n' "  - udevadm            restricted device attributes"
         fi
         if path_has_binary iscsiadm; then
-            echo "  - iscsiadm           iSCSI sessions"
+            printf '%s\n' "  - iscsiadm           iSCSI sessions"
         fi
-        echo ""
+        printf '\n'
     } >&"$_fd"
 }
 
@@ -669,9 +680,9 @@ check_privileges() {
 
     if [ "$NONINTERACTIVE" -eq 1 ] || [ ! -t 0 ] || [ ! -t 1 ]; then
         if [ "$OUTPUT_JSON" -eq 1 ]; then
-            echo "Continuing without sudo (non-interactive)." >&2
+            printf '%s\n' "Continuing without sudo (non-interactive)." >&2
         else
-            echo "Continuing without sudo (non-interactive)."
+            printf '%s\n' "Continuing without sudo (non-interactive)."
         fi
         return 0
     fi
@@ -682,7 +693,7 @@ check_privileges() {
         printf "Re-run with sudo for full output? (y/n): "
     fi
     IFS= read -r _response
-    echo ""
+    printf '\n'
     case "$_response" in
         [Yy]*)
             require_binary sudo
@@ -690,14 +701,13 @@ check_privileges() {
             ;;
         *)
             if [ "$OUTPUT_JSON" -eq 1 ]; then
-                echo "Continuing without sudo." >&2
+                printf '%s\n' "Continuing without sudo." >&2
             else
-                echo "Continuing without sudo."
+                printf '%s\n' "Continuing without sudo."
             fi
             ;;
     esac
 }
-
 
 count_dir_entries() {
     _dir=$1
@@ -737,7 +747,6 @@ list_dir_names() {
         print_block "  $(basename "$_path")"
     done
 }
-
 
 SEEN_IDS_FILE=""
 
@@ -1096,7 +1105,7 @@ collect_network() {
         [ -d "$net" ] || continue
         iface=$(basename "$net")
         case "$iface" in
-            can*|vcan*) continue ;;
+            can* | vcan*) continue ;;
         esac
         kind=$(net_iface_kind "$iface")
         if ! should_include_kind "$kind"; then
@@ -1269,7 +1278,7 @@ collect_storage() {
         dev=$(basename "$block")
         kind=physical
         case "$dev" in
-            loop*|dm-*|ram*) kind=virtual ;;
+            loop* | dm-* | ram*) kind=virtual ;;
         esac
         if ! should_include_kind "$kind"; then
             continue
@@ -1348,7 +1357,7 @@ collect_usb() {
             udev_out=$(udevadm info --query=all --name="$device" 2>/dev/null | head -20)
             if [ -n "$udev_out" ]; then
                 print_block "  udevadm ($devname):"
-                echo "$udev_out" | while IFS= read -r _udev_line; do
+                printf '%s\n' "$udev_out" | while IFS= read -r _udev_line; do
                     print_block "    $_udev_line"
                 done
             fi
@@ -1425,9 +1434,8 @@ collect_wwan() {
     print_block ""
 }
 
-
 emit_json() {
-    hostname=$(hostname 2>/dev/null || echo unknown)
+    hostname=$(hostname 2>/dev/null || printf '%s\n' unknown)
     kernel=$(uname -r 2>/dev/null)
     user=$(whoami 2>/dev/null)
     timestamp=$(utc_timestamp)
@@ -1470,7 +1478,7 @@ emit_json() {
                 printf ','
             fi
             printf '%s' "$line"
-        done < "$DEVICES_FILE"
+        done <"$DEVICES_FILE"
     fi
     printf '],'
     printf '"summary":{"total_devices":%s,"counts_by_bus":{%s}}' "$DEVICE_COUNT" "$counts"
@@ -1478,13 +1486,13 @@ emit_json() {
 }
 
 emit_device_list() {
-    [ "$OUTPUT_JSON" -eq 1 ] && return
-    [ ! -f "$HUMAN_LIST_FILE" ] && return
+    [ "$OUTPUT_JSON" -eq 1 ] && return 0
+    [ ! -f "$HUMAN_LIST_FILE" ] && return 0
 
-    echo ""
-    echo "-------------------------------------"
-    echo "DEVICES FOUND"
-    echo "-------------------------------------"
+    printf '\n'
+    printf '%s\n' "-------------------------------------"
+    printf '%s\n' "DEVICES FOUND"
+    printf '%s\n' "-------------------------------------"
     printf '%-10s %-10s %-18s %-10s %-12s %-20s %-14s %s\n' \
         "BUS" "KIND" "NAME" "DRIVER" "SERIAL" "VENDOR" "PRODUCT" "STATE"
     printf '%-10s %-10s %-18s %-10s %-12s %-20s %-14s %s\n' \
@@ -1502,48 +1510,51 @@ emit_device_list() {
             bus, kind, name, driver, serial, vendor, product, state
     }'
 
-    echo ""
-    echo "  Paths:"
+    printf '\n'
+    printf '%s\n' "  Paths:"
     awk -F '\t' 'NF >= 9 {
         printf "%s\t%s\t%s\n", $3, $1, $9
     }' "$HUMAN_LIST_FILE" | sort -t '	' -k2,2 -k1,1 | awk -F '\t' '{
         printf "    [%s] %s -> %s\n", $2, $1, $3
     }'
-    echo ""
+    printf '\n'
+    return 0
 }
 
 emit_device_names() {
-    [ "$OUTPUT_JSON" -eq 1 ] && return
-    [ "$VERBOSITY" -lt 1 ] && return
-    [ ! -f "$HUMAN_LIST_FILE" ] && return
+    [ "$OUTPUT_JSON" -eq 1 ] && return 0
+    [ "$VERBOSITY" -lt 1 ] && return 0
+    [ ! -f "$HUMAN_LIST_FILE" ] && return 0
 
-    echo ""
-    echo "-------------------------------------"
-    echo "DEVICES FOUND"
-    echo "-------------------------------------"
-    awk -F '\t' 'NF >= 3 { printf "%s\t%s\t%s\n", $3, $1, $2 }' "$HUMAN_LIST_FILE" \
-        | sort -t '	' -k1,1 -k2,2 \
-        | awk -F '\t' '{ printf "  %s  (%s / %s)\n", $1, $2, $3 }'
-    echo ""
+    printf '\n'
+    printf '%s\n' "-------------------------------------"
+    printf '%s\n' "DEVICES FOUND"
+    printf '%s\n' "-------------------------------------"
+    awk -F '\t' 'NF >= 3 { printf "%s\t%s\t%s\n", $3, $1, $2 }' "$HUMAN_LIST_FILE" |
+        sort -t '	' -k1,1 -k2,2 |
+        awk -F '\t' '{ printf "  %s  (%s / %s)\n", $1, $2, $3 }'
+    printf '\n'
+    return 0
 }
 
 emit_human_summary() {
-    [ "$OUTPUT_JSON" -eq 1 ] && return
+    [ "$OUTPUT_JSON" -eq 1 ] && return 0
 
-    echo ""
-    echo "-------------------------------------"
-    echo "SUMMARY"
-    echo "-------------------------------------"
-    echo "  Total recorded devices: $DEVICE_COUNT"
+    printf '\n'
+    printf '%s\n' "-------------------------------------"
+    printf '%s\n' "SUMMARY"
+    printf '%s\n' "-------------------------------------"
+    printf '%s\n' "  Total recorded devices: $DEVICE_COUNT"
 
     if [ -f "$HUMAN_LIST_FILE" ] && [ -s "$HUMAN_LIST_FILE" ]; then
-        echo "  Counts by bus:"
+        printf '%s\n' "  Counts by bus:"
         awk -F '\t' 'NF >= 1 { c[$1]++ } END {
             for (b in c) printf "%d\t%s\n", c[b], b
         }' "$HUMAN_LIST_FILE" | sort -t '	' -k1,1rn -k2,2 | awk -F '\t' '{
             printf "    %4d  %s\n", $1, $2
         }'
     fi
+    return 0
 }
 
 emit_human_report() {
@@ -1554,11 +1565,10 @@ emit_human_report() {
     if [ "$VERBOSITY" -ge 2 ]; then
         emit_device_list
     fi
-    echo "====================================="
-    echo "   SCAN COMPLETE"
-    echo "====================================="
+    printf '%s\n' "====================================="
+    printf '%s\n' "   SCAN COMPLETE"
+    printf '%s\n' "====================================="
 }
-
 
 run_all_collectors() {
     build_wireless_iface_cache
@@ -1601,24 +1611,33 @@ run_all_collectors() {
 }
 
 print_scan_header() {
-    [ "$OUTPUT_JSON" -eq 1 ] && return
-    echo "====================================="
-    echo "   DEVICE DISCOVERY SCRIPT"
-    echo "====================================="
-    echo "Date: $(date)"
-    echo "Kernel: $(uname -r)"
-    echo "Running as: $(whoami)"
-    echo "Version: ${SCRIPT_VERSION} (modular)"
+    [ "$OUTPUT_JSON" -eq 1 ] && return 0
+    printf '%s\n' "====================================="
+    printf '%s\n' "   DEVICE DISCOVERY SCRIPT"
+    printf '%s\n' "====================================="
+    printf '%s\n' "Date: $(date)"
+    printf '%s\n' "Kernel: $(uname -r)"
+    printf '%s\n' "Running as: $(whoami)"
+    printf '%s\n' "Version: ${SCRIPT_VERSION} (modular)"
     case "$VERBOSITY" in
-        0) echo "Output: summary only (-v for names, -vv for full diagnostics)" ;;
-        1) echo "Output: summary and device names" ;;
-        2) echo "Output: full diagnostics (-vv)" ;;
+        0) printf '%s\n' "Output: summary only (-v for names, -vv for full diagnostics)" ;;
+        1) printf '%s\n' "Output: summary and device names" ;;
+        2) printf '%s\n' "Output: full diagnostics (-vv)" ;;
     esac
-    [ "$PHYSICAL_ONLY" -eq 1 ] && echo "Filter: physical devices only"
-    [ "$PCI_ALL" -eq 0 ] && echo "PCI: endpoints only (use --pci-all for bridges)"
-    [ "$FULL_DUMP" -eq 1 ] && echo "Extra: full /dev and /sys dumps"
-    [ "$FORCE_POSIX" -eq 1 ] && echo "Mode: strict POSIX"
-    echo "====================================="
+    if [ "$PHYSICAL_ONLY" -eq 1 ]; then
+        printf '%s\n' "Filter: physical devices only"
+    fi
+    if [ "$PCI_ALL" -eq 0 ]; then
+        printf '%s\n' "PCI: endpoints only (use --pci-all for bridges)"
+    fi
+    if [ "$FULL_DUMP" -eq 1 ]; then
+        printf '%s\n' "Extra: full /dev and /sys dumps"
+    fi
+    if [ "$FORCE_POSIX" -eq 1 ]; then
+        printf '%s\n' "Mode: strict POSIX"
+    fi
+    printf '%s\n' "====================================="
+    return 0
 }
 
 main() {

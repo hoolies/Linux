@@ -1,6 +1,84 @@
-pkill -9 picom && picom --daemon &
-nitrogen --restore &
-conky -c /etc/conky/conky.conf 2> /dev/null
-setxkbmap -layout "us,gr" -option "grp:alt_shift_toggle" &
-kitty &
-firefox &
+#!/usr/bin/env sh
+# autostart — start the usual graphical session helpers.
+
+set -eu
+export LC_ALL=C
+unalias -a 2>/dev/null || true
+unset -f pkill picom nitrogen conky setxkbmap kitty firefox 2>/dev/null || true
+
+readonly PROGNAME="${0##*/}"
+readonly CONKY_CONFIG="/etc/conky/conky.conf"
+
+usage() {
+    cat <<EOF
+Usage: $PROGNAME [OPTION]...
+Start picom, nitrogen, conky, the keyboard map, kitty, and firefox.
+
+Mandatory arguments to long options are mandatory for short options too.
+
+  -h, --help            display this help and exit
+EOF
+}
+
+unrecognized_option() {
+    printf '%s: unrecognized option %s\n' "$PROGNAME" "$1" >&2
+    printf "Try '%s --help' for more information.\n" "$PROGNAME" >&2
+}
+
+parse_args() {
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            -h | --help)
+                usage
+                exit 0
+                ;;
+            --)
+                shift
+                break
+                ;;
+            -*)
+                unrecognized_option "$1"
+                exit 2
+                ;;
+            *)
+                unrecognized_option "$1"
+                exit 2
+                ;;
+        esac
+    done
+}
+
+start_compositor() {
+    pkill -9 picom 2>/dev/null || true
+    picom --daemon || true
+}
+
+start_wallpaper() {
+    nitrogen --restore || true
+}
+
+start_conky() {
+    if [ -f "$CONKY_CONFIG" ]; then
+        conky -c "$CONKY_CONFIG" >/dev/null 2>&1 || true
+    fi
+}
+
+start_keymap() {
+    setxkbmap -layout "us,gr" -option "grp:alt_shift_toggle" || true
+}
+
+start_apps() {
+    kitty >/dev/null 2>&1 &
+    firefox >/dev/null 2>&1 &
+}
+
+main() {
+    parse_args "$@"
+    start_compositor
+    start_wallpaper
+    start_conky
+    start_keymap
+    start_apps
+}
+
+main "$@"

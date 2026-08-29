@@ -10,7 +10,7 @@ _dd_collector() {
     . "$DD_ROOT/collectors/$1"
 }
 
-# shellcheck disable=SC1090
+# shellcheck disable=SC1090,SC1091
 . "$DD_ROOT/config.sh"
 
 _dd_lib output.sh
@@ -52,9 +52,9 @@ _dd_collector mtp.sh
 _dd_collector kernel.sh
 _dd_collector full_dump.sh
 
-# shellcheck disable=SC1090
+# shellcheck disable=SC1090,SC1091
 . "$DD_ROOT/emit.sh"
-# shellcheck disable=SC1090
+# shellcheck disable=SC1090,SC1091
 . "$DD_ROOT/scan.sh"
-# shellcheck disable=SC1090
+# shellcheck disable=SC1090,SC1091
 . "$DD_ROOT/main.sh"

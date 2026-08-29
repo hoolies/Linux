@@ -26,64 +26,74 @@
 # The api_url must return JSON; 'version_key' and 'download_url_key' are jq
 # filters selecting the version string and the AppImage download URL.
 set -euo pipefail
+export LC_ALL=C
+unalias -a 2>/dev/null || true
+unset -f rm mv cp grep awk sed cat chmod mkdir curl jq find sort 2>/dev/null || true
 
-PROG=${0##*/}
+readonly PROGNAME="${0##*/}"
+PROG=$PROGNAME
 declare -A CFG
 
-log()  { printf '%s: %s\n' "$PROG" "$*" >&2; }
-die()  { log "error: $*"; exit 1; }
+log() { printf '%s: %s\n' "$PROGNAME" "$*" >&2; }
+die() {
+    log "error: $*"
+    exit 1
+}
 need() { command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"; }
 
+unrecognized_option() {
+    printf '%s: unrecognized option %s\n' "$PROGNAME" "$1" >&2
+    printf "Try '%s --help' for more information.\n" "$PROGNAME" >&2
+}
+
 usage() {
-  cat <<EOF
-Usage: $PROG [CONFIG_FILE]
-       $PROG --example [json|toml|yaml]
+    cat <<EOF
+Usage: $PROGNAME [OPTION]... [CONFIG_FILE]
+Generate a launcher and updater for an AppImage-based app.
+
+Mandatory arguments to long options are mandatory for short options too.
+
+      --example[=FORMAT]  print a sample config (json, toml, or yaml)
+  -h, --help              display this help and exit
 
 With no CONFIG_FILE, you are prompted for each value.
-CONFIG_FILE may be .json, .toml, .yaml/.yml (parsed by extension, else auto).
-
-Required keys : name, api_url, install_dir, appimage_name
-Optional keys : version_key (default .version)
-                download_url_key (default .downloadUrl)
-                bin_dir (default \$HOME/.local/bin)
-                keep (default 4)
-
-'appimage_name' must contain {version}, e.g. Cursor-{version}-x86_64.AppImage
+Required keys: name, api_url, install_dir, appimage_name.
+appimage_name must contain {version}.
 EOF
 }
 
 print_example() {
-  case "${1:-json}" in
-    toml)
-      cat <<'EOF'
+    case "${1:-json}" in
+        toml)
+            cat <<'EOF'
 name = "cursor"
 api_url = "https://cursor.com/api/download?platform=linux-x64&releaseTrack=stable"
-install_dir = "$HOME/Downloads/Cursor"
+install_dir = "/opt/Cursor"
 appimage_name = "Cursor-{version}-x86_64.AppImage"
 version_key = ".version"
 download_url_key = ".downloadUrl"
 bin_dir = "$HOME/.local/bin"
 keep = 4
 EOF
-      ;;
-    yaml|yml)
-      cat <<'EOF'
+            ;;
+        yaml | yml)
+            cat <<'EOF'
 name: cursor
 api_url: "https://cursor.com/api/download?platform=linux-x64&releaseTrack=stable"
-install_dir: "$HOME/Downloads/Cursor"
+install_dir: "/opt/Cursor"
 appimage_name: "Cursor-{version}-x86_64.AppImage"
 version_key: ".version"
 download_url_key: ".downloadUrl"
 bin_dir: "$HOME/.local/bin"
 keep: 4
 EOF
-      ;;
-    *)
-      cat <<'EOF'
+            ;;
+        *)
+            cat <<'EOF'
 {
   "name": "cursor",
   "api_url": "https://cursor.com/api/download?platform=linux-x64&releaseTrack=stable",
-  "install_dir": "$HOME/Downloads/Cursor",
+  "install_dir": "/opt/Cursor",
   "appimage_name": "Cursor-{version}-x86_64.AppImage",
   "version_key": ".version",
   "download_url_key": ".downloadUrl",
@@ -91,14 +101,14 @@ EOF
   "keep": 4
 }
 EOF
-      ;;
-  esac
+            ;;
+    esac
 }
 
 parse_config() {
-  # Emits "key<TAB>value" lines for recognized keys.
-  need python3
-  python3 - "$1" <<'PY'
+    # Emits "key<TAB>value" lines for recognized keys.
+    need python3
+    python3 - "$1" <<'PY'
 import sys, os
 path = sys.argv[1]
 ext = os.path.splitext(path)[1].lower()
@@ -127,51 +137,77 @@ for k in ("name","api_url","install_dir","appimage_name",
 PY
 }
 
-ask() {  # ask VAR "Question" ["default"]
-  local __var=$1 q=$2 def=${3-} ans
-  if [[ ! -t 0 ]]; then
-    [[ -n "$def" ]] && { printf -v "$__var" '%s' "$def"; return; }
-    die "no value for '$__var' and input is not interactive"
-  fi
-  if [[ -n "$def" ]]; then
-    read -r -p "$q [$def]: " ans; ans=${ans:-$def}
-  else
-    read -r -p "$q: " ans
-  fi
-  printf -v "$__var" '%s' "$ans"
+ask() { # ask VAR "Question" ["default"]
+    local __var=$1 q=$2 def=${3-} ans
+    if [[ ! -t 0 ]]; then
+        [[ -n "$def" ]] && {
+            printf -v "$__var" '%s' "$def"
+            return
+        }
+        die "no value for '$__var' and input is not interactive"
+    fi
+    if [[ -n "$def" ]]; then
+        read -r -p "$q [$def]: " ans
+        ans=${ans:-$def}
+    else
+        read -r -p "$q: " ans
+    fi
+    printf -v "$__var" '%s' "$ans"
 }
 
 # normalize a leading ~ to the literal text $HOME so it expands at runtime
 # in the generated launcher. The literal '$HOME' is intentional here, so the
 # usual "tilde/expansion in single quotes" warnings do not apply.
 tilde_to_home() {
-  # shellcheck disable=SC2088,SC2016
-  case "$1" in
-    "~/"*) printf '$HOME/%s' "${1#"~/"}" ;;
-    "~")   printf '$HOME' ;;
-    *)     printf '%s' "$1" ;;
-  esac
+    # shellcheck disable=SC2088,SC2016
+    case "$1" in
+        "~/"*) printf '$HOME/%s' "${1#"~/"}" ;;
+        "~") printf '$HOME' ;;
+        *) printf '%s' "$1" ;;
+    esac
 }
 
 # ---- args -----------------------------------------------------------------
 CONFIG_FILE=''
 case "${1-}" in
-  -h|--help) usage; exit 0 ;;
-  --example) print_example "${2-json}"; exit 0 ;;
-  '') : ;;
-  *) CONFIG_FILE=$1 ;;
+    -h | --help)
+        usage
+        exit 0
+        ;;
+    --example)
+        print_example "${2-json}"
+        exit 0
+        ;;
+    --example=*)
+        print_example "${1#--example=}"
+        exit 0
+        ;;
+    '')
+        :
+        ;;
+    -*)
+        unrecognized_option "$1"
+        exit 2
+        ;;
+    *)
+        CONFIG_FILE=$1
+        if [ "$#" -gt 1 ]; then
+            unrecognized_option "$2"
+            exit 2
+        fi
+        ;;
 esac
 
 # ---- load config file if provided -----------------------------------------
 if [[ -n "$CONFIG_FILE" ]]; then
-  [[ -f "$CONFIG_FILE" ]] || die "config file not found: $CONFIG_FILE"
-  # Capture first so a parse failure (bad file, missing python3) aborts here,
-  # instead of being hidden inside a process substitution.
-  parsed=$(parse_config "$CONFIG_FILE") || die "failed to parse config: $CONFIG_FILE"
-  while IFS=$'\t' read -r k v; do
-    [[ -n "$k" ]] && CFG[$k]=$v
-  done <<<"$parsed"
-  log "loaded config from $CONFIG_FILE"
+    [[ -f "$CONFIG_FILE" ]] || die "config file not found: $CONFIG_FILE"
+    # Capture first so a parse failure (bad file, missing python3) aborts here,
+    # instead of being hidden inside a process substitution.
+    parsed=$(parse_config "$CONFIG_FILE") || die "failed to parse config: $CONFIG_FILE"
+    while IFS=$'\t' read -r k v; do
+        [[ -n "$k" ]] && CFG[$k]=$v
+    done <<<"$parsed"
+    log "loaded config from $CONFIG_FILE"
 fi
 
 # ---- resolve values (config -> prompt -> default) -------------------------
@@ -184,18 +220,18 @@ download_key=${CFG[download_url_key]:-.downloadUrl}
 bin_dir=${CFG[bin_dir]:-}
 keep=${CFG[keep]:-4}
 
-[[ -n "$name" ]]          || ask name          "Command name (e.g. cursor)"
-[[ -n "$api_url" ]]       || ask api_url       "API URL returning JSON metadata"
-[[ -n "$install_dir" ]]   || ask install_dir   "Install directory for AppImages" "\$HOME/Downloads/${name^}"
+[[ -n "$name" ]] || ask name "Command name (e.g. cursor)"
+[[ -n "$api_url" ]] || ask api_url "API URL returning JSON metadata"
+[[ -n "$install_dir" ]] || ask install_dir "Install directory for AppImages" "\$HOME/Downloads/${name^}"
 [[ -n "$appimage_name" ]] || ask appimage_name "AppImage name (must contain {version})" "${name^}-{version}-x86_64.AppImage"
-[[ -n "${CFG[version_key]:-}" ]]      || ask version_key  "jq filter for version"      "$version_key"
-[[ -n "${CFG[download_url_key]:-}" ]] || ask download_key  "jq filter for download URL" "$download_key"
-[[ -n "$bin_dir" ]]       || ask bin_dir       "Directory to install the '$name' command" "\$HOME/.local/bin"
-[[ -n "${CFG[keep]:-}" ]] || ask keep          "How many versions to keep"  "$keep"
+[[ -n "${CFG[version_key]:-}" ]] || ask version_key "jq filter for version" "$version_key"
+[[ -n "${CFG[download_url_key]:-}" ]] || ask download_key "jq filter for download URL" "$download_key"
+[[ -n "$bin_dir" ]] || ask bin_dir "Directory to install the '$name' command" "\$HOME/.local/bin"
+[[ -n "${CFG[keep]:-}" ]] || ask keep "How many versions to keep" "$keep"
 
 # ---- validate -------------------------------------------------------------
-[[ -n "$name" ]]        || die "name is required"
-[[ -n "$api_url" ]]     || die "api_url is required"
+[[ -n "$name" ]] || die "name is required"
+[[ -n "$api_url" ]] || die "api_url is required"
 [[ -n "$install_dir" ]] || die "install_dir is required"
 [[ -n "$appimage_name" ]] || die "appimage_name is required"
 [[ "$appimage_name" == *"{version}"* ]] || die "appimage_name must contain the {version} placeholder"
@@ -207,33 +243,33 @@ bin_dir=$(tilde_to_home "$bin_dir")
 
 # ---- derive glob + version regex from the template ------------------------
 appimage_glob="${appimage_name//\{version\}/*}"
-appimage_regex=$(printf '%s' "$appimage_name" \
-  | sed -E 's/[][(){}.^$*+?|\\]/\\&/g' \
-  | sed -E 's/\\\{version\\\}/([0-9]+\\.[0-9]+\\.[0-9]+)/')
+appimage_regex=$(printf '%s' "$appimage_name" |
+    sed -E 's/[][(){}.^$*+?|\\]/\\&/g' |
+    sed -E 's/\\\{version\\\}/([0-9]+\\.[0-9]+\\.[0-9]+)/')
 
 # ---- write the launcher ---------------------------------------------------
 out="$bin_dir/$name"
 mkdir -p "$bin_dir"
 if [[ -e "$out" && ! -f "$out" ]]; then
-  die "$out exists and is not a regular file"
+    die "$out exists and is not a regular file"
 fi
 [[ -e "$out" ]] && log "overwriting existing $out"
 
 {
-  printf '#!/usr/bin/env bash\n'
-  printf '# %s launcher + updater. Generated by %s on %s\n' "$name" "$PROG" "$(date -Iseconds 2>/dev/null || date)"
-  printf 'set -euo pipefail\n\n'
-  printf 'APP_NAME=%q\n' "$name"
-  printf 'API_URL=%q\n' "$api_url"
-  printf 'INSTALL_DIR="%s"\n' "$install_dir"
-  printf 'KEEP=%q\n' "$keep"
-  printf 'VERSION_KEY=%q\n' "$version_key"
-  printf 'DOWNLOAD_KEY=%q\n' "$download_key"
-  printf 'APPIMAGE_TEMPLATE=%q\n' "$appimage_name"
-  printf 'APPIMAGE_GLOB=%q\n' "$appimage_glob"
-  printf 'APPIMAGE_REGEX=%q\n' "$appimage_regex"
-  printf '\n'
-  cat <<'LAUNCHER'
+    printf '#!/usr/bin/env bash\n'
+    printf '# %s launcher + updater. Generated by %s on %s\n' "$name" "$PROG" "$(date -Iseconds 2>/dev/null || date)"
+    printf 'set -euo pipefail\n\n'
+    printf 'APP_NAME=%q\n' "$name"
+    printf 'API_URL=%q\n' "$api_url"
+    printf 'INSTALL_DIR="%s"\n' "$install_dir"
+    printf 'KEEP=%q\n' "$keep"
+    printf 'VERSION_KEY=%q\n' "$version_key"
+    printf 'DOWNLOAD_KEY=%q\n' "$download_key"
+    printf 'APPIMAGE_TEMPLATE=%q\n' "$appimage_name"
+    printf 'APPIMAGE_GLOB=%q\n' "$appimage_glob"
+    printf 'APPIMAGE_REGEX=%q\n' "$appimage_regex"
+    printf '\n'
+    cat <<'LAUNCHER'
 DO_UPDATE=0
 SHOW_VERSION=0
 PICK_VERSION=''
@@ -281,7 +317,7 @@ mkdir -p "$INSTALL_DIR"
 
 ver_of() {
   local f=$1
-  [[ "$f" =~ $APPIMAGE_REGEX ]] && echo "${BASH_REMATCH[1]}"
+  [[ "$f" =~ $APPIMAGE_REGEX ]] && printf '%s\n' "${BASH_REMATCH[1]}"
 }
 
 list_appimages() {
@@ -291,12 +327,12 @@ list_appimages() {
 latest_appimage() {
   local all
   mapfile -t all < <(list_appimages)
-  [[ ${#all[@]} -gt 0 ]] && echo "${all[-1]}"
+  [[ ${#all[@]} -gt 0 ]] && printf '%s\n' "${all[-1]}"
 }
 
 appimage_for() {
   local p="$INSTALL_DIR/${APPIMAGE_TEMPLATE/\{version\}/$1}"
-  [[ -f "$p" ]] && echo "$p"
+  [[ -f "$p" ]] && printf '%s\n' "$p"
 }
 
 launch() {
@@ -403,7 +439,7 @@ app=$(latest_appimage || true)
 [[ -n "$app" ]] || die "no $APP_NAME installed in $INSTALL_DIR (run: $APP_NAME --update)"
 launch "$app" "${PASSTHRU[@]}"
 LAUNCHER
-} > "$out"
+} >"$out"
 
 chmod +x "$out"
 
@@ -414,7 +450,7 @@ log "  install dir  : $install_dir"
 log "  appimage     : $appimage_name"
 log "  keep         : $keep versions"
 case ":$PATH:" in
-  *":$bin_dir:"*) : ;;
-  *) log "note: $bin_dir is not on your PATH; add it to use '$name' directly" ;;
+    *":$bin_dir:"*) : ;;
+    *) log "note: $bin_dir is not on your PATH; add it to use '$name' directly" ;;
 esac
 log "next: run '$name --update' to download the first version"

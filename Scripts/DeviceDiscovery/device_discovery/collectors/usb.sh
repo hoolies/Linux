@@ -41,7 +41,7 @@ collect_usb() {
             udev_out=$(udevadm info --query=all --name="$device" 2>/dev/null | head -20)
             if [ -n "$udev_out" ]; then
                 print_block "  udevadm ($devname):"
-                echo "$udev_out" | while IFS= read -r _udev_line; do
+                printf '%s\n' "$udev_out" | while IFS= read -r _udev_line; do
                     print_block "    $_udev_line"
                 done
             fi

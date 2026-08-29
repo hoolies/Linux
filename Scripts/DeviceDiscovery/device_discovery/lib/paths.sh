@@ -24,9 +24,9 @@ init_path_cache() {
         head grep tail find ls sh bash cat nc timeout \
         awk sed tr wc basename date hostname uname whoami id; do
         if _path_probe "$_bin"; then
-            printf '%s=1\n' "$_bin" >> "$PATH_CACHE_FILE"
+            printf '%s=1\n' "$_bin" >>"$PATH_CACHE_FILE"
         else
-            printf '%s=0\n' "$_bin" >> "$PATH_CACHE_FILE"
+            printf '%s=0\n' "$_bin" >>"$PATH_CACHE_FILE"
         fi
     done
 }
@@ -42,12 +42,12 @@ path_has_binary() {
     fi
     if _path_probe "$_name"; then
         if [ -f "$PATH_CACHE_FILE" ]; then
-            printf '%s=1\n' "$_name" >> "$PATH_CACHE_FILE"
+            printf '%s=1\n' "$_name" >>"$PATH_CACHE_FILE"
         fi
         return 0
     fi
     if [ -f "$PATH_CACHE_FILE" ]; then
-        printf '%s=0\n' "$_name" >> "$PATH_CACHE_FILE"
+        printf '%s=0\n' "$_name" >>"$PATH_CACHE_FILE"
     fi
     return 1
 }
@@ -56,7 +56,7 @@ require_binary() {
     if path_has_binary "$1"; then
         return 0
     fi
-    echo "Error: required binary is not installed in PATH: $1" >&2
+    printf '%s\n' "Error: required binary is not installed in PATH: $1" >&2
     exit 127
 }
 
@@ -70,7 +70,7 @@ require_binary_one_of() {
     for _candidate in "$@"; do
         _needed="${_needed}${_needed:+ }${_candidate}"
     done
-    echo "Error: required binary is not installed in PATH (need one of): ${_needed}" >&2
+    printf '%s\n' "Error: required binary is not installed in PATH (need one of): ${_needed}" >&2
     exit 127
 }
 

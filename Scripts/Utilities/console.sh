@@ -1,77 +1,163 @@
-#!/bin/env bash
+#!/usr/bin/env sh
+# console — open an interactive serial console on a device.
 
-# Function to display usage
-show_usage() {
-    printf "\nUsage:\n"
-    printf "  ./console.sh <device> <port speed> <stop bits> <parity>\n\n"
-    printf "Parameters:\n"
-    printf "  device      - Serial device (e.g., /dev/ttyS0)\n"
-    printf "  port speed  - Baud rate (e.g., 9600)\n"
-    printf "  stop bits   - Number of stop bits: 1 or 2\n"
-    printf "  parity      - Parity type: even or odd\n\n"
-    printf "Example:\n"
-    printf "  ./console.sh /dev/ttyS0 9600 1 even\n\n"
+set -eu
+export LC_ALL=C
+unalias -a 2>/dev/null || true
+unset -f stty cat kill printf 2>/dev/null || true
+
+readonly PROGNAME="${0##*/}"
+
+usage() {
+    cat <<EOF
+Usage: $PROGNAME [OPTION]... DEVICE SPEED STOPBITS PARITY
+Open an interactive serial console on DEVICE.
+
+Mandatory arguments to long options are mandatory for short options too.
+
+  -h, --help            display this help and exit
+
+STOPBITS is 1 or 2.  PARITY is even or odd.
+Type exit on a line by itself to close the console.
+EOF
 }
 
-# Check for --help flag
-if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
-    show_usage
-    exit 0
-fi
+unrecognized_option() {
+    printf '%s: unrecognized option %s\n' "$PROGNAME" "$1" >&2
+    printf "Try '%s --help' for more information.\n" "$PROGNAME" >&2
+}
 
-# Check if all required parameters are provided
-if [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ] || [ -z "$4" ]; then
-    printf "\nError: All parameters are required.\n"
-    show_usage
-    exit 1
-fi
+missing_operand() {
+    printf '%s: missing operand\n' "$PROGNAME" >&2
+    printf "Try '%s --help' for more information.\n" "$PROGNAME" >&2
+}
 
-# Validate stop bits parameter
-case "$3" in
-    1) stopb="-cstopb";;
-    2) stopb="cstopb";;
-    *) 
-        printf "\nError: Invalid stop bits value '$3'. Must be 1 or 2.\n"
-        show_usage
+extra_operand() {
+    printf '%s: extra operand %s\n' "$PROGNAME" "$1" >&2
+    printf "Try '%s --help' for more information.\n" "$PROGNAME" >&2
+}
+
+invalid_stopbits() {
+    printf '%s: invalid stop bits %s\n' "$PROGNAME" "$1" >&2
+    printf "Try '%s --help' for more information.\n" "$PROGNAME" >&2
+}
+
+invalid_parity() {
+    printf '%s: invalid parity %s\n' "$PROGNAME" "$1" >&2
+    printf "Try '%s --help' for more information.\n" "$PROGNAME" >&2
+}
+
+parse_args() {
+    DEVICE=""
+    SPEED=""
+    STOPBITS=""
+    PARITY=""
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            -h | --help)
+                usage
+                exit 0
+                ;;
+            --)
+                shift
+                break
+                ;;
+            -*)
+                unrecognized_option "$1"
+                exit 2
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+    if [ "$#" -lt 4 ]; then
+        missing_operand
+        exit 2
+    fi
+    if [ "$#" -gt 4 ]; then
+        extra_operand "$5"
+        exit 2
+    fi
+    DEVICE="$1"
+    SPEED="$2"
+    STOPBITS="$3"
+    PARITY="$4"
+}
+
+validate_serial_args() {
+    case "$STOPBITS" in
+        1 | 2) ;;
+        *)
+            invalid_stopbits "$STOPBITS"
+            exit 2
+            ;;
+    esac
+    case "$PARITY" in
+        even | odd) ;;
+        *)
+            invalid_parity "$PARITY"
+            exit 2
+            ;;
+    esac
+}
+
+stopbits_flag() {
+    case "$1" in
+        1) printf '%s' "-cstopb" ;;
+        2) printf '%s' "cstopb" ;;
+    esac
+}
+
+parity_flag() {
+    case "$1" in
+        even) printf '%s' "-parodd" ;;
+        odd) printf '%s' "parodd" ;;
+    esac
+}
+
+configure_device() {
+    stopb="$1"
+    par="$2"
+    printf 'stty -F %s %s %s %s\n' "$DEVICE" "$SPEED" "$stopb" "$par"
+    if ! stty -F "$DEVICE" "$SPEED" "$stopb" "$par" -icrnl; then
+        printf '%s: stty failed on %s\n' "$PROGNAME" "$DEVICE" >&2
         exit 1
-        ;;
-esac
+    fi
+}
 
-# Validate parity parameter
-if [ "$4" = "even" ]; then
-    par="-parodd"
-elif [ "$4" = "odd" ]; then
-    par="parodd"
-else
-    printf "\nError: Invalid parity value '$4'. Must be 'even' or 'odd'.\n"
-    show_usage
-    exit 1
-fi
+stop_reader() {
+    if [ -n "${BG_PID:-}" ]; then
+        kill "$BG_PID" 2>/dev/null || true
+        BG_PID=""
+    fi
+}
 
-printf "\nThen stty -F $1 $2 $stopb $par\n"
+run_console() {
+    cat -v -- "$DEVICE" &
+    BG_PID="$!"
+    trap stop_reader EXIT INT TERM HUP
+    cmd=""
+    while [ "$cmd" != "exit" ]; do
+        if ! IFS= read -r cmd; then
+            break
+        fi
+        if [ "$cmd" = "exit" ]; then
+            break
+        fi
+        printf '\010%s\015' "$cmd" >"$DEVICE"
+    done
+    stop_reader
+    trap - EXIT INT TERM HUP
+}
 
-# Set up device
-stty -F "$1" "$2" "$stopb" "$par" -icrnl
+main() {
+    parse_args "$@"
+    validate_serial_args
+    stopb="$(stopbits_flag "$STOPBITS")"
+    par="$(parity_flag "$PARITY")"
+    configure_device "$stopb" "$par"
+    run_console
+}
 
-# Check if error ocurred
-if [ "$?" -ne 0 ]; then
-    printf "\n\nError ocurred, stty exited $?\n\n"
-    exit 1;
-fi
-
-# Let cat read the device $1 in the background
-cat -v "$1" &
-
-# Capture PID of background process so it is possible to terminate it when done
-bgPid="$!"
-
-# Read commands from user, send them to device $1
-while [ "$cmd" != "exit" ]
-do
-   read cmd
-   echo -e "\x08$cmd\x0D" > "$1" #strip off the \n that read puts and adds \r for windows like LF
-
-done
-
-# Terminate background read process
-kill "$bgPid"
+main "$@"
